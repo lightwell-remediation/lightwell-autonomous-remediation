@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: openshift-ai-operator
+description: Red Hat OpenShift AI operator subscription (the DataScienceCluster belongs to the openshift-ai chart)
+type: application
+version: 0.1.0
+appVersion: "3.5"

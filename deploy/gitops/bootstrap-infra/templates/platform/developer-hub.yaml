@@ -1,0 +1,42 @@
+{{- if and .Values.platform.enabled .Values.platform.developerHub.enabled }}
+---
+# Scaffold. Off by default, Milestone 2 Phase 7 decides whether it lands.
+# The chart it points at installs the operator only, see its README.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-developer-hub
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: lightwell-developer-hub
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/developer-hub") }}
+    helm:
+      valuesObject:
+        operator:
+          channel: {{ .Values.platform.developerHub.channel | quote }}
+          startingCSV: {{ .Values.platform.developerHub.startingCSV | quote }}
+        clusterDomain: {{ .Values.cluster.domain | quote }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

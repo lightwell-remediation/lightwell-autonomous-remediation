@@ -1,0 +1,21 @@
+---
+# RHOAI 3.x will not start a workbench or a model server without a hardware
+# profile to pick, so enabling those features in the dashboard without one gives
+# you a console that can only show errors.
+#
+# CPU only on purpose. There is no GPU in this cluster and nothing needs one:
+# inference comes from MaaS (ADR-0002).
+namespace: redhat-ods-applications
+
+profile:
+  name: cpu-profile
+  displayName: CPU Profile
+  description: CPU profile with configurable CPU and memory. No GPU, inference comes from MaaS.
+  cpu:
+    default: "2"
+    min: 1
+    max: 8
+  memory:
+    default: 8Gi
+    min: 1Gi
+    max: 24Gi

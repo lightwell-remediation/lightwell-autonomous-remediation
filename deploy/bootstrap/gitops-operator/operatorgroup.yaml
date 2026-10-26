@@ -1,0 +1,9 @@
+---
+# Empty spec means all namespaces, which is the only install mode the GitOps
+# operator supports.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-gitops-operator
+spec: {}

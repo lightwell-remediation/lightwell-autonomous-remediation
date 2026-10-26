@@ -1,0 +1,34 @@
+---
+# Cluster where RHOAI is already installed by other automation.
+#
+# The operator and the DataScienceCluster are left alone: another controller or
+# another repository owns them, and a second owner of a DSC means both fight on
+# every sync (ADR-0006). We only add what is missing.
+#
+# Check before using this preset:
+#   oc get datasciencecluster -o yaml | grep -A1 mlflowoperator
+# The MLflow CR needs mlflowoperator Managed in that DSC. If it is Removed, ask
+# whoever owns the DSC to turn it on, or disable platform.mlflow here.
+
+platform:
+  enabled: true
+  openshiftAiOperator:
+    enabled: false
+  openshiftAi:
+    enabled: false
+  # Someone else's dashboard. Their flags, their hardware profiles, leave both
+  # alone or you will fight them on every sync.
+  dashboardConfig:
+    enabled: false
+  hardwareProfile:
+    enabled: false
+  # Pipelines is usually not there even when RHOAI is.
+  openshiftPipelines:
+    enabled: true
+  mlflow:
+    enabled: true
+  developerHub:
+    enabled: false
+
+agents:
+  enabled: true

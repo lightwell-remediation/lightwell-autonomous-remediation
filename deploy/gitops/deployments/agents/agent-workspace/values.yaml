@@ -1,0 +1,29 @@
+---
+# Set by the agents-workspace Application in bootstrap-infra.
+namespace: lightwell-agents
+
+# Sessions that have to fit at the same time. Only used for documentation and
+# for the LimitRange maximum.
+concurrency: 2
+
+# Per container budget for one session (harness plus a Maven build).
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+serviceAccount:
+  name: lightwell-agent
+
+limitRange:
+  enabled: true
+
+# Secret names this namespace is expected to carry. Created by make secrets
+# from secrets/secrets.env, never by this chart (ADR-0007).
+secrets:
+  maas: lightwell-maas
+  github: lightwell-github
+  lightwell: lightwell-lightwell

@@ -1,0 +1,100 @@
+# Secrets — NEVER commit real credentials
+#
+# GITHUB_TOKEN, MAAS_API_KEY and the Lightwell password live in
+# secrets/secrets.env and nowhere else in this tree. Everything below is
+# deliberately wider than that one file: the next person will put a token in
+# token.txt or .env.local, and the pattern has to already cover it. Scan with
+# the no-secrets skill before any commit, the ignore list is the second line of
+# defence, not the first.
+secrets/secrets.env
+secrets/*.env
+*.env
+.env.*
+env.local
+!*.template.env
+!*.example.env
+!.env.example
+
+# Credential files by name, whatever directory they land in
+*token*.txt
+*token*.json
+*secret*.txt
+credentials.json
+service-account.json
+*-sa.json
+.netrc
+.git-credentials
+
+# Cluster access
+kubeconfig
+kubeconfig*
+*.kubeconfig
+.kube/
+
+# Key and certificate material
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Node / JS
+node_modules/
+dist/
+.cache/
+*.tgz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Helm
+charts/
+*.tgz
+
+# Agent runtime workspace (clones + session artifacts, local only)
+.workspace/
+
+# Test inputs fetched from credentialed sources (OSV records, crafted fixtures).
+# Local only — once the pipeline exists it retrieves these itself.
+.fixtures/
+
+# Agent status / logs (local only)
+.agent-status/
+.logs/
+.rendered/
+.verify-status.json
+
+# Playwright
+test-results/
+playwright-report/
+
+# Build
+*.o
+*.so
+
+# Cluster specific GitOps values (deploy/values/local.example.yaml is the template)
+deploy/values/local.yaml
+
+# Replayed runs (scripts/remediate.sh --replay)
+.replay/
+.deliver-candidate/
+
+# Resolution measurements
+.measure/

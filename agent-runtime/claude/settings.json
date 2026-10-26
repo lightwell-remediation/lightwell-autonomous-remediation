@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(mvn test:*)",
+      "Bash(mvn -q test:*)",
+      "Bash(mvn -s settings.xml test:*)",
+      "Bash(mvn -s settings.xml -q test:*)",
+      "Bash(./mvnw test:*)",
+      "Bash(./gradlew test:*)"
+    ],
+    "deny": [
+      "Read(//**/secrets/**)",
+      "Read(//**/secrets*.env)",
+      "Read(**/.env)",
+      "Read(**/.git/config)",
+      "Read(**/.git-credentials)",
+      "Read(**/.npmrc)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git config:*)",
+      "Bash(rm -rf:*)",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1"
+  }
+}

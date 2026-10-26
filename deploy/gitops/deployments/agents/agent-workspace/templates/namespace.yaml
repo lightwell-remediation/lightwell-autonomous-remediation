@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    # MLflow discovers its workspaces from this label, so the namespace is
+    # already a workspace when Phase 4.5 wires tracing. It also makes the
+    # namespace visible as a project in the RHOAI dashboard.
+    opendatahub.io/dashboard: "true"
+    app.kubernetes.io/part-of: lightwell
+  annotations:
+    openshift.io/display-name: "Lightwell agents"
+    openshift.io/description: "Remediation agent runs, image builds and their credentials"

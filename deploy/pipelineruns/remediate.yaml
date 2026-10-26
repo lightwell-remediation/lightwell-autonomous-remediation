@@ -1,0 +1,66 @@
+---
+# A real remediation run. Created imperatively, never reconciled — see the
+# README in this directory for why a PipelineRun must not be GitOps-managed.
+#
+#   oc create -f deploy/pipelineruns/remediate.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: remediate-
+  namespace: lightwell-agents
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+    # The key the one-run-per-application claim lists on. Must match the
+    # `application` param below; a run without this label is invisible to
+    # every claim, including its own.
+    lightwell.dev/application: lw-apache-cxf-demo
+  annotations:
+    # Without this the run's workspace claim outlives the run under
+    # coschedule: workspaces, which is this cluster's setting. The workspace
+    # is supposed to be created and discarded per run; this is what makes it
+    # so.
+    tekton.dev/auto-cleanup-pvc: "true"
+spec:
+  pipelineRef:
+    name: remediate
+  taskRunTemplate:
+    serviceAccountName: lightwell-agent
+  # The claim is the one task that talks to the Kubernetes API, and it runs
+  # under its own identity. taskRunTemplate sets the default for every task;
+  # this overrides it for that one, which is how the agent's service account
+  # keeps holding no Role at all.
+  taskRunSpecs:
+    - pipelineTaskName: claim-application
+      serviceAccountName: lightwell-run-claim
+  timeouts:
+    # A full sequence measures seven to eleven minutes, and a first run
+    # against a cold dependency cache adds more than fifteen.
+    pipeline: 1h0m0s
+  # Your own copy of the application, never the public template (see
+  # docs/replicate.md). With Lightwell: a private copy of
+  # lw-apache-cxf-demo-template and a record exported from Lightwell. Without
+  # it: a copy of document-intake-service and the public record, for example
+  # https://api.osv.dev/v1/vulns/GHSA-hfrx-6qgj-fp6c (also committed under
+  # osv/ here). scripts/run-remediation.sh fills both and the label for you.
+  params:
+    - name: application
+      value: lightwell-remediation/lw-apache-cxf-demo
+    - name: osv
+      value: https://example.invalid/osv/CVE-2026-68079.json
+    # Leave empty to use the model the MaaS Secret configures. Set it to run
+    # the same sequence with a different one — that is an invocation
+    # parameter, which is what keeps the dual-agent arrangement from needing
+    # a second deployment.
+    - name: model
+      value: ""
+    - name: replay
+      value: "false"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          storageClassName: ocs-external-storagecluster-ceph-rbd
+          resources:
+            requests:
+              storage: 5Gi

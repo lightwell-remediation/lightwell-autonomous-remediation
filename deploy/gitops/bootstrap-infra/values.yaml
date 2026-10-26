@@ -1,0 +1,171 @@
+---
+# Default values for bootstrap-infra, the ArgoCD app-of-apps parent.
+#
+# This chart only creates Applications. The workload charts live under
+# <pathPrefix>/deployments/{platform,agents}/*.
+#
+#   platform.*  cluster wide infrastructure, one Application each
+#   agents.*    everything an agent run needs, in one namespace
+#
+# Ordering is sync waves, so a single apply converges. Anything that changes
+# between clusters is a value here, never a literal in a template.
+#
+# Presets: deploy/values/cluster-plain.yaml installs the platform,
+# deploy/values/cluster-rhoai-existing.yaml adopts an RHOAI someone else owns.
+# Put cluster specific overrides in deploy/values/local.yaml (gitignored).
+
+bootstrap:
+  # Repository holding this chart and the deployments/ charts.
+  repoURL: https://github.com/lightwell-remediation/lightwell-autonomous-remediation
+  # Branch, tag or commit ArgoCD tracks.
+  targetRevision: main
+  # Path inside the repo that contains bootstrap-infra/ and deployments/.
+  pathPrefix: deploy/gitops
+  argoNamespace: openshift-gitops
+  project: default
+
+# Cluster coordinates. Only used for routes today (Developer Hub), but keep it
+# set: it is the first thing that differs between clusters.
+cluster:
+  domain: ""
+
+# ---------------------------------------------------------------------------
+# Platform: operators and the RHOAI pieces MLflow needs.
+# Set platform.enabled=false to skip the whole group.
+# ---------------------------------------------------------------------------
+platform:
+  enabled: true
+
+  # RHOAI operator subscription (wave -5). No Milestone 1 feature depends on
+  # RHOAI, it is installed now because MLflow (Phase 4.5) and all of Phase 5
+  # need it, and because discovering a broken install days before the deadline
+  # is the risk this removes.
+  openshiftAiOperator:
+    enabled: true
+    # Verified in the cluster catalog: stable-3.5 resolves to rhods-operator.3.5.1.
+    channel: stable-3.5
+    # Pin a CSV (e.g. rhods-operator.3.5.1) for a reproducible event, empty
+    # tracks the channel.
+    startingCSV: ""
+
+  # DataScienceCluster (wave -4). Component list is in
+  # deployments/platform/openshift-ai/values.yaml: a component is Managed unless
+  # there is a reason it cannot work here, and the reason is next to it.
+  openshiftAi:
+    enabled: true
+
+  # Dashboard feature flags (wave -1). The operator creates OdhDashboardConfig
+  # with almost nothing set, which hides most of the console even where the
+  # component behind it is Managed. Turn this off only if something else on the
+  # cluster owns that singleton.
+  dashboardConfig:
+    enabled: true
+
+  # A CPU hardware profile (wave 0). RHOAI 3.x will not start a workbench or a
+  # model server without one, so the dashboard features above would be visible
+  # and unusable.
+  hardwareProfile:
+    enabled: true
+
+  # OpenShift Pipelines operator (wave -5). Prerequisite for Phase 3 and for the
+  # smoke pipeline that proves this cluster can run agents.
+  openshiftPipelines:
+    enabled: true
+    # latest resolves to openshift-pipelines-operator-rh.v1.24.1.
+    channel: latest
+    startingCSV: ""
+
+  # MLflow tracking server (wave 0). Not wired to anything in Milestone 1, it is
+  # the Phase 4.5 and Milestone 2 target for agent tracing and the prompt
+  # registry.
+  mlflow:
+    enabled: true
+
+  # Red Hat Developer Hub (wave 5). Scaffolded, off. Milestone 2 Phase 7 decides
+  # whether it lands, see deployments/platform/developer-hub/README.md.
+  developerHub:
+    enabled: false
+    channel: fast
+    startingCSV: ""
+
+# ---------------------------------------------------------------------------
+# Agents: the namespace a remediation run happens in.
+# ---------------------------------------------------------------------------
+agents:
+  enabled: true
+  # One namespace holds the builds, the ImageStreams, the Secrets and the runs.
+  # Splitting build from run namespaces would need a cross namespace image
+  # puller binding and buys nothing while both are ours.
+  namespace: lightwell-agents
+
+  # How many sessions have to fit at the same time. Drives the LimitRange
+  # maximum and the smoke pipeline, and it is the number to change when the
+  # dual agent work of Milestone 2 needs more.
+  concurrency: 2
+
+  # Per container budget for one agent session: the harness plus a Maven build.
+  # Applied as LimitRange defaults, so a run that asks for nothing still gets a
+  # usable share. No ResourceQuota on purpose, a hard cap that blocks a build at
+  # 2am is worse than an over-subscribed node.
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  # Namespace, ServiceAccount, LimitRange (wave 0).
+  workspace:
+    enabled: true
+
+  # Chained builds of the runtime image into the internal registry (wave 1).
+  # See ADR-0008.
+  runtimeImage:
+    enabled: true
+    # Pinned together with agent-runtime/build-image.sh. Bump in both places.
+    claudeCodeVersion: "2.1.295"
+    ghVersion: "2.63.2"
+    upstreamRepo: https://github.com/red-hat-data-services/agentic-starter-kits.git
+    upstreamRef: "61d2ea8"
+    # Source of the second build. appRepo defaults to the repo ArgoCD is
+    # tracking.
+    appRepo: ""
+    # The ref does not default with it, on purpose. The agent runtime is
+    # application code and lives on main; these manifests are infrastructure
+    # and are developed on a branch. Letting the ref follow targetRevision
+    # means a cluster bootstrapped from a feature branch builds the agent
+    # from that branch too, which is how it ended up running a runtime that
+    # was months of commits behind main while everything looked healthy.
+    #
+    # Set it back to "" to restore the old behaviour of building whatever
+    # ArgoCD tracks — useful when the change under test is in the runtime
+    # itself and lives on a branch.
+    appRepoRef: "main"
+    # Basic-auth Secret used to clone this repository while it is private.
+    # Created by make secrets, dropped when the repo goes public in Phase 4.
+    sourceSecret: lightwell-git-source
+    # Build pod budget. The upstream build is npm plus microdnf, ours is a JDK.
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+
+  # Smoke Task and Pipeline (wave 2). The PipelineRun is created by
+  # make validate, not by ArgoCD: one-shot objects are permanent drift.
+  smoke:
+    enabled: true
+    # Third parallel task that checks the MaaS gateway answers with the pinned
+    # model, using the in-cluster Secret. Prints status and model ids, never the
+    # key.
+    checkMaas: true
+
+# Secret names the charts expect. Created by make secrets from
+# secrets/secrets.env, never by a chart. See ADR-0007.
+secrets:
+  maas: lightwell-maas
+  github: lightwell-github
+  lightwell: lightwell-lightwell

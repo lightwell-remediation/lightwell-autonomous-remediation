@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: agent-workspace
+description: Namespace, ServiceAccount and container budget for agent runs
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

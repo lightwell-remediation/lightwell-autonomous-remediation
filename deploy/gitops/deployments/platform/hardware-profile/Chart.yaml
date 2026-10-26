@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: hardware-profile
+description: A CPU hardware profile, so the dashboard can actually start a workbench
+type: application
+version: 0.1.0
+appVersion: "3.5"

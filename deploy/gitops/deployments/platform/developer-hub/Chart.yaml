@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: developer-hub
+description: Red Hat Developer Hub operator subscription. Scaffold, off by default, Milestone 2 Phase 7
+type: application
+version: 0.1.0
+appVersion: "1.10"

@@ -1,0 +1,31 @@
+{
+  "terminal_state": "remediable",
+  "reason": "org.apache.cxf:cxf-rt-rs-security-oauth2 is resolved at version 4.2.2, which is affected; the remediating version 4.2.2.vendor-00001 exists. The vulnerable class DefaultEncryptingCodeDataProvider is never referenced in the application source, so the upgrade is not urgent.",
+
+  "vulnerability": {
+    "id": "x_VENDOR-CVE-2026-68079-4.2.2",
+    "summary": "Apache CXF: DefaultEncryptingCodeDataProvider allows unlimited authorization code replay",
+    "severity": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+  },
+
+  "component": {
+    "group": "org.apache.cxf",
+    "artifact": "cxf-rt-rs-security-oauth2",
+    "current_version": "4.2.2",
+    "presence": "direct",
+    "dependency_path": [],
+    "declared_in": "pom.xml",
+    "version_controlled_by": "property <cxf.version>4.2.2</cxf.version> in pom.xml"
+  },
+
+  "reachability": {
+    "verdict": "not-reachable",
+    "symbols_searched": [
+      "DefaultEncryptingCodeDataProvider",
+      "removeCodeGrant"
+    ],
+    "evidence": "Searched all five application source files (HelloWorldApplication.java, HelloWorldResource.java, OAuth2Config.java, SampleBearerTokenValidator.java, HelloWorldResourceTest.java). Neither DefaultEncryptingCodeDataProvider nor removeCodeGrant appears in any of them. The application uses OAuthRequestFilter with a custom SampleBearerTokenValidator for bearer-token validation only; the authorization-code grant flow backed by DefaultEncryptingCodeDataProvider is not used."
+  },
+
+  "remediating_version": "4.2.2.vendor-00001"
+}

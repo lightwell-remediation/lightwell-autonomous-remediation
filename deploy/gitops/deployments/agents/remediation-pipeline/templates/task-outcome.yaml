@@ -1,0 +1,60 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-outcome
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    Render the run's single honest exit status
+    (orchestration-strategy.spec.md — The Run's Outcome Is a Single Honest
+    Status). Runs in finally, so it reports whatever happened upstream.
+
+    It is not redundant with the per-task failures. Without it, a run where a
+    phase is skipped on an unexpected state ends with every task "completed"
+    and the PipelineRun reporting success having delivered nothing — *nothing
+    needed doing* and *something needed doing and did not get done* collapsed
+    into one status, which is exactly what this contract exists to prevent.
+  params:
+    - name: analysis-state
+      type: string
+      description: The analysis's terminal state, or "none".
+    - name: delivery-status
+      type: string
+      description: 'Tekton''s status for the deliver task: Succeeded, Failed or None.'
+    - name: image
+      type: string
+      default: {{ .Values.image.cli | quote }}
+  steps:
+    - name: report
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.cliResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+
+        analysis="$(params.analysis-state)"
+        delivery="$(params.delivery-status)"
+
+        echo "analysis: ${analysis}"
+        echo "delivery: ${delivery}"
+
+        # Nothing to remediate is a successful outcome, not a run that failed
+        # to do anything. The repository is unchanged in both cases, and
+        # whatever triggered this acts on the difference.
+        if [ "$analysis" = "no-action-needed" ]; then
+          echo "nothing needed doing — the analysis found no action required"
+          exit 0
+        fi
+
+        if [ "$delivery" = "Succeeded" ]; then
+          echo "remediated, verified and delivered"
+          exit 0
+        fi
+
+        echo "something needed doing and did not get done" >&2
+        echo "the phase that stopped the run is the one marked failed above;" >&2
+        echo "its document is in the run workspace under out/" >&2
+        exit 1

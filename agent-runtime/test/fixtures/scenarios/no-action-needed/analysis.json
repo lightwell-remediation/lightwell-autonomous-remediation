@@ -1,0 +1,31 @@
+{
+  "terminal_state": "no-action-needed",
+  "reason": "org.apache.cxf:cxf-rt-rs-security-oauth2 resolves at 4.2.2.vendor-00001, which is past the affected range closed by this advisory. The application is not exposed and no change is required.",
+
+  "vulnerability": {
+    "id": "x_VENDOR-CVE-2026-68079-4.2.2",
+    "summary": "Apache CXF: DefaultEncryptingCodeDataProvider allows unlimited authorization code replay",
+    "severity": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+  },
+
+  "component": {
+    "group": "org.apache.cxf",
+    "artifact": "cxf-rt-rs-security-oauth2",
+    "current_version": "4.2.2.vendor-00001",
+    "presence": "direct",
+    "dependency_path": ["com.lightwell:lw-apache-cxf-sample:1.0.0-SNAPSHOT"],
+    "declared_in": "pom.xml",
+    "version_controlled_by": "property <cxf.version>4.2.2.vendor-00001</cxf.version> (pom.xml line 22)"
+  },
+
+  "reachability": {
+    "verdict": "reachable",
+    "symbols_searched": [
+      "DefaultEncryptingCodeDataProvider",
+      "removeCodeGrant"
+    ],
+    "evidence": "The vulnerable class is subclassed, but the resolved version already carries the fix, so reachability does not make the application exposed."
+  },
+
+  "remediating_version": null
+}

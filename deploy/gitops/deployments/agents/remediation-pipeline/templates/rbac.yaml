@@ -1,0 +1,42 @@
+# The agent service account deliberately holds no Role: the agent does not
+# talk to the Kubernetes API. Listing PipelineRuns is the one thing the
+# orchestration needs from the API, so it gets its own identity with exactly
+# that and nothing else (ADR-0009 — One run per application needs an identity
+# the agent does not have).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.claim }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.serviceAccount.claim }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+rules:
+  # Read only, and only PipelineRuns. Nothing here can create, cancel or
+  # modify a run — the claim decides whether to proceed, it does not act.
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.serviceAccount.claim }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.serviceAccount.claim }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.claim }}
+    namespace: {{ .Values.namespace }}

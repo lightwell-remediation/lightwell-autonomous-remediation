@@ -1,0 +1,27 @@
+---
+# Patch of the instance the operator already created. We deliberately do not own
+# this object, see ADR-0006: two owners of an operator singleton fight forever.
+# Only the two fields below are set, everything else stays operator defaulted.
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+spec:
+  # Cluster admins see every Application in the UI, which is what you want when
+  # debugging a sync on a shared cluster.
+  rbac:
+    policy: |-
+      g, system:cluster-admins, role:admin
+      g, cluster-admins, role:admin
+  # The operator default limit is 2Gi and the controller OOMKills around it once
+  # a full app set reconciles (seen on rhoaibu-cluster-nightly). Our app set is
+  # smaller, but a crash loop during the first sync is expensive to debug.
+  controller:
+    resources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: 250m
+        memory: 1Gi

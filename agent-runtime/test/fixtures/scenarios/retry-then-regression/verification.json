@@ -1,0 +1,27 @@
+{
+  "terminal_state": "regression",
+  "reason": "The dependency moved to 4.2.2.vendor-00001 and the exploit test now passes, but a baseline test that passed before the change fails after it: the audit count no longer reflects redeemed codes, because the fallback was removed without updating the counter it fed.",
+
+  "resolved_version": "4.2.2.vendor-00001",
+  "affected_version_absent": true,
+  "reintroduced_by": null,
+
+  "baseline_tests": 3,
+  "regressions": [
+    {
+      "test": "com.lightwell.cxf.hello.HelloWorldResourceTest#returnsHelloWorldWhenBearerTokenIsValid",
+      "attribution": "regression",
+      "detail": "Passed on the unmodified checkout, fails after the change with NullPointerException at AuditedCodeDataProvider.removeCodeGrant line 34."
+    }
+  ],
+  "missing_or_altered": [],
+  "tests_added": [],
+
+  "exploit_test": {
+    "available": true,
+    "failed_before": true,
+    "passed_after": true
+  },
+
+  "not_established": "Whether the remediation is sound cannot be judged while a baseline test it broke is still failing."
+}

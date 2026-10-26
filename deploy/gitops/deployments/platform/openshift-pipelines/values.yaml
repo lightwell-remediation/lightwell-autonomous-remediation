@@ -1,0 +1,16 @@
+---
+# Subscription only.
+#
+# The operator creates a TektonConfig named "config" with profile all, which
+# brings Pipelines, Triggers and Pipelines as Code. We deliberately do not own
+# that object: it is an operator defaulted singleton, and two owners of one of
+# those fight forever (ADR-0006). Tune it with oc patch if ever needed.
+operator:
+  namespace: openshift-operators
+  name: openshift-pipelines-operator-rh
+  # latest resolves to openshift-pipelines-operator-rh.v1.24.1 in the catalog.
+  channel: latest
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+  startingCSV: ""

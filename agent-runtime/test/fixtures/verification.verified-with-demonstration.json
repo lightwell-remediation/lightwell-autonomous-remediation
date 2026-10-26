@@ -1,0 +1,23 @@
+{
+  "terminal_state": "verified",
+  "reason": "org.apache.cxf:cxf-rt-rs-security-oauth2 resolves at 4.2.2.vendor-00001 and version 4.2.2 appears nowhere in the dependency tree; all three baseline tests pass unchanged, and the exploit test that failed against the vulnerable code now passes.",
+
+  "resolved_version": "4.2.2.vendor-00001",
+  "affected_version_absent": true,
+  "reintroduced_by": null,
+
+  "baseline_tests": 3,
+  "regressions": [],
+  "missing_or_altered": [],
+  "tests_added": [
+    "com.lightwell.cxf.hello.AuditedCodeDataProviderTest#authorizationCodeCannotBeRedeemedMoreThanOnce"
+  ],
+
+  "exploit_test": {
+    "available": true,
+    "failed_before": true,
+    "passed_after": true
+  },
+
+  "not_established": "The exploit test exercises the defect at the unit level by calling AuditedCodeDataProvider#removeCodeGrant directly; a full end-to-end OAuth2 authorization-code replay over HTTP was not exercised, so behaviour at the HTTP layer under a live server remains untested by this suite."
+}

@@ -1,0 +1,190 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-patch-and-verify
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    Patch, restore the original baseline, verify. One Task because the two
+    retry together: the Pipeline sets retries: 1 on it, which re-runs every
+    step against the same workspace, so the second attempt reads the evidence
+    the first left behind. That is the whole of the bounded retry — there is
+    no second copy of these phases anywhere
+    (ADR-0009 — The retry is retries: 1 on a combined Task).
+  params:
+    - name: image
+      type: string
+      default: {{ .Values.image.agent | quote }}
+    - name: osv
+      type: string
+      default: ""
+    - name: model
+      type: string
+      default: ""
+    - name: replay
+      type: string
+      default: "false"
+    - name: fixture-patch
+      type: string
+      default: patch.json
+    - name: fixture-verify
+      type: string
+      description: Verification document served on the first attempt.
+      default: verification.json
+    - name: fixture-verify-retry
+      type: string
+      description: >-
+        Served on the second attempt. Defaults to the first, so a scenario
+        that does not model a retry needs only one document.
+      default: ""
+    {{- include "remediation.cacheParam" . | nindent 4 }}
+  workspaces:
+    - name: source
+    - name: fixtures
+      optional: true
+      mountPath: /fixtures
+    - name: osv
+      description: >-
+        The vulnerability record, as a ConfigMap. One record per run. A URL
+        works just as well — the param takes either — but a mounted record
+        needs no network and makes the run reproducible.
+      optional: true
+      mountPath: /osv
+  volumes:
+    {{- include "remediation.cacheVolume" . | nindent 4 }}
+  results:
+    - name: terminal-state
+      description: The verification's terminal state.
+  steps:
+    # ── Patch ────────────────────────────────────────────────────────────
+    - name: patch
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.agentEnv" . | nindent 6 }}
+      {{- include "remediation.cacheMount" . | nindent 6 }}
+      {{- include "remediation.agentResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        {{- include "remediation.prologue" . | nindent 8 }}
+
+        # retries cannot discriminate between failures, and the spec allows a
+        # retry only where verification reported a regression: a retry
+        # addresses a known cause, and every other terminal state means the
+        # cause is not known. Whichever step concluded that leaves this
+        # sentinel, and the second attempt stops here having started no
+        # session and spent nothing.
+        if [ -f "$OUT/.no-retry" ]; then
+          echo "patch: not retried — $(cat "$OUT/.no-retry")" >&2
+          exit 1
+        fi
+
+        attempt=1
+        [ -r "$OUT/.attempt" ] && attempt=$(( $(cat "$OUT/.attempt") + 1 ))
+        echo "$attempt" > "$OUT/.attempt"
+        echo "patch: attempt $attempt"
+
+        if [ "$attempt" -gt 1 ] && [ -r "$OUT/verification.json" ]; then
+          echo "patch: carrying the regression evidence from the previous attempt"
+        fi
+
+        status=0
+        if [ "$(params.replay)" = "true" ]; then
+          fixture="/fixtures/$(params.fixture-patch)"
+          if [ ! -r "$fixture" ]; then
+            echo "patch: replay fixture not readable: $fixture" >&2
+            exit 1
+          fi
+          cp "$fixture" "$OUT/patch.json"
+          node "${CHECK_PATCH:-/opt/agent-runtime/lib/check-patch.js}" "$OUT/patch.json" || status=$?
+        else
+          args=(--role patch --no-clone)
+          [ -n "$(params.osv)" ]   && args+=(--osv "$(params.osv)")
+          [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
+          entrypoint.sh /usr/local/bin/run-agent.sh "${args[@]}" || status=$?
+        fi
+
+        if [ "$status" != "0" ]; then
+          state="$(state_of "$OUT/patch.json")"
+          echo "patching did not produce a change (${state:-no document})" > "$OUT/.no-retry"
+          echo "patch: failed — ${state:-no document}" >&2
+          exit "$status"
+        fi
+
+    # ── Restore the baseline ─────────────────────────────────────────────
+    - name: restore-baseline
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.cliResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        OUT="$(workspaces.source.path)/out"
+
+        # Every attempt is measured against the suite as it stood before the
+        # first one. Re-capturing here would let a regression introduced by
+        # the first attempt become the standard the second is judged against
+        # (fix-verification.spec.md, guarantee 4). Doing it as its own step
+        # means it cannot be skipped by an early exit in either neighbour.
+        if [ -r "$OUT/baseline-tests.original.txt" ]; then
+          cp "$OUT/baseline-tests.original.txt" "$OUT/baseline-tests.txt"
+          echo "restore-baseline: restored $(wc -l <"$OUT/baseline-tests.txt") test(s)"
+        else
+          echo "restore-baseline: no baseline to restore" >&2
+          exit 1
+        fi
+
+    # ── Verify ───────────────────────────────────────────────────────────
+    - name: verify
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.agentEnv" . | nindent 6 }}
+      {{- include "remediation.cacheMount" . | nindent 6 }}
+      {{- include "remediation.agentResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        {{- include "remediation.prologue" . | nindent 8 }}
+
+        status=0
+        if [ "$(params.replay)" = "true" ]; then
+          attempt=1
+          [ -r "$OUT/.attempt" ] && attempt="$(cat "$OUT/.attempt")"
+          fixture="$(params.fixture-verify)"
+          if [ "$attempt" -gt 1 ] && [ -n "$(params.fixture-verify-retry)" ]; then
+            fixture="$(params.fixture-verify-retry)"
+          fi
+          if [ ! -r "/fixtures/$fixture" ]; then
+            echo "verify: replay fixture not readable: /fixtures/$fixture" >&2
+            emit none > "$(results.terminal-state.path)"
+            exit 1
+          fi
+          cp "/fixtures/$fixture" "$OUT/verification.json"
+          echo "verify: replayed from $fixture"
+          node "${CHECK_VERIFICATION:-/opt/agent-runtime/lib/check-verification.js}" \
+            "$OUT/verification.json" || status=$?
+        else
+          entrypoint.sh /usr/local/bin/run-agent.sh --role verify --no-clone || status=$?
+        fi
+
+        state="$(state_of "$OUT/verification.json")"
+        emit "$state" > "$(results.terminal-state.path)"
+
+        if [ "$status" = "0" ]; then
+          echo "verify: $state"
+          exit 0
+        fi
+
+        # A regression is the one conclusion worth another attempt, and it is
+        # the one that must NOT leave the sentinel: failing without it is what
+        # lets retries fire. Everything else — cannot-verify above all — is a
+        # cause the agent does not know, and retrying an unknown cause buys a
+        # model call for nothing.
+        if [ "$state" = "regression" ]; then
+          echo "verify: regression — returning it to patching" >&2
+          exit 1
+        fi
+
+        echo "verification could not establish the evidence (${state:-no document})" > "$OUT/.no-retry"
+        echo "verify: ${state:-no document} — not retried" >&2
+        exit 1

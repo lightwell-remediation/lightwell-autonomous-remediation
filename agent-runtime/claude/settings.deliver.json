@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Write(//**/out/pr-narrative.json)",
+      "Edit(//**/out/pr-narrative.json)",
+      "Write(//**/out/pr-body.md)",
+      "Edit(//**/out/pr-body.md)"
+    ],
+    "deny": [
+      "Read(//**/secrets/**)",
+      "Read(//**/secrets*.env)",
+      "Read(**/.env)",
+      "Read(**/.git/config)",
+      "Read(**/.git-credentials)",
+      "Read(**/.npmrc)",
+      "Bash",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1"
+  }
+}

@@ -1,0 +1,35 @@
+{{- if and .Values.platform.enabled .Values.platform.hardwareProfile.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-hardware-profile
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave 0: needs the CRD from the DSC, and the dashboard needs the profile
+    # before it can start a workbench or a model server.
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: redhat-ods-applications
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/hardware-profile") }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

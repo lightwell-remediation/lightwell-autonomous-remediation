@@ -1,0 +1,32 @@
+# The dependency cache, and the only storage here that outlives a run.
+#
+# A cold cache costs over fifteen minutes against roughly two warm, on a
+# sequence that already takes seven to eleven — and a dual-agent run would pay
+# it per candidate. The run's own workspace is a volumeClaimTemplate instead,
+# so nothing else survives to mislead the next run
+# (orchestration-strategy.spec.md — Two Lifetimes, Two Volumes).
+#
+# ReadWriteMany is not cosmetic: runs against different applications may be
+# concurrent, which the one-run-per-application claim permits on purpose, and
+# an RWO claim would serialise them on a volume they mostly only read.
+# Concurrent reads of a warm cache are safe; two runs populating the same cold
+# entry can race on a partial download, so the first run against a new set of
+# dependencies is best done alone and before anyone is watching.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.cache.claimName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+  annotations:
+    # Survives a `helm uninstall` of this chart. Re-fetching a warm cache is
+    # the single most expensive accident available here.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ .Values.cache.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.cache.size }}

@@ -1,0 +1,20 @@
+---
+# MLflow tracking server.
+#
+# Cluster scoped CR. The operator runs the pods in redhat-ods-applications and
+# serves https://mlflow.redhat-ods-applications.svc.cluster.local:8443/mlflow.
+#
+# sqlite plus a PVC on purpose: a SQL backend is what the prompt registry and
+# the OTLP trace endpoint need, and Postgres plus object storage is a Milestone 2
+# problem, not a Phase 0.5 one.
+storage:
+  size: 20Gi
+  accessMode: ReadWriteOnce
+backendStoreUri: "sqlite:////mlflow/mlflow.db"
+artifactsDestination: "file:///mlflow/artifacts"
+
+# Workspaces are discovered from namespaces carrying this label, which the
+# agent namespace sets. Nothing writes traces yet, this is the Phase 4.5 hook.
+workspaceLabel:
+  key: opendatahub.io/dashboard
+  value: "true"

@@ -1,0 +1,172 @@
+# Tool calls per phase — five runs of the full sequence
+#
+# claude-sonnet-4-6, reachable-CVE fixture, 2026-10-17.
+# Kept because the next optimisation worth doing is reading these, not
+# parallelising: ~90% of a run's wall time is agent sessions, and those are a
+# strict data chain. Turns are where the time is.
+#
+# For context, patch takes 16 turns in the fastest run and exploit 14 — both
+# more than analyze, which does the most reasoning. The last two times a phase
+# looked expensive, the cause was a fact it was missing and went hunting for:
+# analyze dropped from 108 turns to 9 once it was handed a file inventory, and
+# exploit spent 28 of 30 tool calls looking for a jar before it was handed the
+# API signatures.
+#
+# Phases appear in order: analyze, exploit, patch, verify[, patch, verify],
+# deliver. A run with seven blocks took the retry.
+
+## run 1 — 77 turns total
+
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (10 across the session)
+      7  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (8 across the session)
+      5  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (14 across the session)
+     10  Read
+      3  Edit
+      1  Bash
+  repeated targets
+      2x Read /workspace/repo/src/main/java/com/lightwell/cxf/hello/AuditedCodeDataP
+      2x Read /workspace/repo/src/test/java/com/lightwell/cxf/hello/AuditedCodeDataP
+      2x Edit /workspace/out/patch.json
+  session summary
+  tool calls (12 across the session)
+     10  Read
+      2  Edit
+  repeated targets
+      2x Edit /workspace/out/verification.json
+  session summary
+  tool calls (6 across the session)
+      5  Read
+      1  Edit
+  session summary
+
+## run 2 — 58 turns total
+
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (13 across the session)
+     10  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (15 across the session)
+     10  Read
+      4  Edit
+      1  Bash
+  session summary
+  tool calls (10 across the session)
+      9  Read
+      1  Edit
+  session summary
+  tool calls (6 across the session)
+      5  Read
+      1  Edit
+  session summary
+
+## run 3 — 81 turns total
+
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (12 across the session)
+      9  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (10 across the session)
+      7  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (10 across the session)
+      9  Read
+      1  Edit
+  session summary
+  tool calls (13 across the session)
+      9  Read
+      3  Edit
+      1  Bash
+  repeated targets
+      2x Edit /workspace/out/patch.json
+  session summary
+  tool calls (12 across the session)
+     10  Read
+      2  Edit
+  repeated targets
+      2x Edit /workspace/out/verification.json
+  session summary
+  tool calls (6 across the session)
+      5  Read
+      1  Edit
+  session summary
+
+## run 4 — 56 turns total
+
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (12 across the session)
+      9  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (14 across the session)
+      9  Read
+      4  Edit
+      1  Bash
+  session summary
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (6 across the session)
+      5  Read
+      1  Edit
+  session summary
+
+## run 5 — 62 turns total
+
+  tool calls (9 across the session)
+      8  Read
+      1  Edit
+  session summary
+  tool calls (13 across the session)
+     10  Read
+      2  Edit
+      1  Bash
+  session summary
+  tool calls (14 across the session)
+      8  Read
+      5  Edit
+      1  Bash
+  repeated targets
+      2x Edit /workspace/repo/src/test/java/com/lightwell/cxf/hello/HelloWorldResour
+  session summary
+  tool calls (10 across the session)
+      9  Read
+      1  Edit
+  session summary
+  tool calls (6 across the session)
+      5  Read
+      1  Edit
+  session summary
+

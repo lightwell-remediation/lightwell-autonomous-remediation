@@ -1,0 +1,137 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-phase
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    One agent phase: invoke a role, leave its document in the workspace's out
+    directory, and publish its terminal state so the Pipeline can gate on it.
+    Used for analyze, demonstrate and deliver; patching and verification share
+    a Task of their own because they retry together.
+  params:
+    - name: role
+      type: string
+      description: A role run-agent.sh knows — analyze, exploit or deliver.
+    - name: document
+      type: string
+      description: The file the role is contracted to leave in out/.
+    - name: image
+      type: string
+      default: {{ .Values.image.agent | quote }}
+    - name: osv
+      type: string
+      description: Vulnerability record, as a path in the workspace or a URL.
+      default: ""
+    - name: model
+      type: string
+      description: >-
+        An invocation parameter, not deployment configuration: Milestone 2
+        runs this sequence more than once with different models
+        (orchestration-strategy.spec.md — Producing a Candidate Is Separable
+        From Delivering It).
+      default: ""
+    - name: app-branch
+      type: string
+      description: >-
+        Which branch of the application to remediate, and so which branch the
+        pull request is opened against. Empty means the repository's default.
+      default: ""
+    - name: clone
+      type: string
+      description: >-
+        "true" only for the first phase. Every later phase works on the tree
+        the earlier ones left.
+      default: "false"
+    - name: replay
+      type: string
+      description: >-
+        "true" serves a recorded document instead of starting a session. The
+        gate still runs, so a replay exercises the same verdict logic a real
+        run does.
+      default: "false"
+    - name: fixture
+      type: string
+      description: File in the fixtures workspace to serve when replaying.
+      default: ""
+    {{- include "remediation.cacheParam" . | nindent 4 }}
+  workspaces:
+    - name: source
+      description: The checkout and the phase documents. Discarded with the run.
+    - name: fixtures
+      description: Recorded documents, bound only when replaying.
+      optional: true
+      mountPath: /fixtures
+    - name: osv
+      description: >-
+        The vulnerability record, as a ConfigMap. One record per run. A URL
+        works just as well — the param takes either — but a mounted record
+        needs no network and makes the run reproducible.
+      optional: true
+      mountPath: /osv
+  volumes:
+    {{- include "remediation.cacheVolume" . | nindent 4 }}
+  results:
+    - name: terminal-state
+      description: >-
+        The document's terminal_state, or "none" where no document was
+        produced. This is a projection of the document, not a second source of
+        truth — the document remains the handoff.
+  steps:
+    - name: run
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.agentEnv" . | nindent 6 }}
+      {{- include "remediation.cacheMount" . | nindent 6 }}
+      {{- include "remediation.agentResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        {{- include "remediation.prologue" . | nindent 8 }}
+
+        document="$OUT/$(params.document)"
+
+        if [ "$(params.replay)" = "true" ]; then
+          fixture="/fixtures/$(params.fixture)"
+          if [ ! -r "$fixture" ]; then
+            echo "phase $(params.role): replay fixture not readable: $fixture" >&2
+            emit "none" > "$(results.terminal-state.path)"
+            exit 1
+          fi
+          cp "$fixture" "$document"
+          echo "phase $(params.role): replayed from $(params.fixture)"
+
+          # Run the same gate a real run would. The point of a replay is to
+          # exercise the sequencing, and the gate is part of it: a document
+          # that satisfies its schema can still claim something its own fields
+          # deny, and that rejection has to happen here too.
+          case "$(params.role)" in
+            analyze) gate="${CHECK_ANALYSIS:-}" ;;
+            exploit) gate="${CHECK_EXPLOIT:-}" ;;
+            deliver) gate="${CHECK_DELIVERY:-}" ;;
+            *)       gate="" ;;
+          esac
+          status=0
+          if [ -n "$gate" ]; then
+            node "$gate" "$document" || status=$?
+          fi
+        else
+          args=(--role "$(params.role)")
+          [ -n "$(params.osv)" ]   && args+=(--osv "$(params.osv)")
+          [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
+          [ "$(params.clone)" = "true" ] || args+=(--no-clone)
+          [ -n "$(params.app-branch)" ] && args+=(--branch "$(params.app-branch)")
+
+          # Through the image's entrypoint, not around it. Tekton replaces the
+          # image ENTRYPOINT with its own, so calling run-agent.sh directly
+          # skips the starter kit's setup — git credentials, MCP, tracing —
+          # and the agent reaches delivery unable to push.
+          status=0
+          entrypoint.sh /usr/local/bin/run-agent.sh "${args[@]}" || status=$?
+        fi
+
+        state="$(state_of "$document")"
+        emit "$state" > "$(results.terminal-state.path)"
+        echo "phase $(params.role): terminal state ${state:-none}, exit $status"
+        exit "$status"

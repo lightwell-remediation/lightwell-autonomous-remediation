@@ -1,0 +1,26 @@
+# Build context for the agent runtime image. The Containerfile only copies
+# agent-runtime/, so everything else is weight — but two entries here are not
+# about size.
+#
+# secrets/ must never enter a build context: a layer keeps whatever it was
+# given even if a later step removes it, and this image is pushed to a
+# registry other people can pull.
+#
+# .workspace/ is owned by the container's mapped UID after any local run, so
+# `oc start-build --from-dir` cannot read it and the upload fails before it
+# starts — with a permission error that reads like a cluster problem.
+
+.git/
+.github/
+.workspace/
+.replay/
+.agent-status/
+.fixtures/
+secrets/
+docs/
+specs/
+deploy/
+scripts/
+assets/
+.cursor/
+*.md

@@ -1,0 +1,90 @@
+---
+namespace: lightwell-agents
+
+image:
+  # The agent runtime, through the internal registry so no external pull is
+  # needed. The tag names the commit on main it was built from and is never
+  # reused — `scripts/build-runtime-image.sh main` creates it. The
+  # BuildConfig's own output tag is overwritten on every build and must not
+  # be referenced here: it would make a run depend on whenever someone last
+  # pressed build.
+  #
+  # A `wip-` tag here means someone built from a working tree to try
+  # something; it must go back to a main- tag before the branch merges, or
+  # the chart points at an image no commit produced.
+  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:main-9768e2d
+  # `oc` for the two tasks that talk to the Kubernetes API. The in-cluster
+  # imagestream avoids needing a registry.redhat.io pull secret.
+  cli: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+  # IfNotPresent is safe now that the tag above names a commit and is never
+  # reused. It was Always while the chart referenced the BuildConfig's own
+  # output tag, which the build overwrites — and with IfNotPresent the node
+  # went on serving the layer it had cached first, so a rebuild changed
+  # nothing. The symptom was a module the image demonstrably contained.
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  # Runs the phases. Deliberately holds no Role: the agent does not talk to
+  # the Kubernetes API (ADR-0009 — One run per application).
+  agent: lightwell-agent
+  # Runs claim-application only. Holds exactly get/list on pipelineruns.
+  claim: lightwell-run-claim
+
+secrets:
+  # Key names in these Secrets match the environment variables the runtime
+  # reads, so they are consumed with envFrom rather than a mapping.
+  maas: lightwell-maas        # MAAS_BASE_URL, MAAS_API_KEY, MAAS_MODEL, MAAS_SMALL_MODEL
+  github: lightwell-github    # APP_REPO, GITHUB_TOKEN, GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL
+  # LW_USERNAME / LW_PASSWORD / LW_MAVEN_REPO_URL for the Lightwell Maven
+  # repository, which the application's settings.xml reads from env. Optional
+  # so the replay scenarios run without it; a real run needs it, and without
+  # it Maven fails in a way that reads like a bad patch rather than a missing
+  # credential.
+  lightwell: lightwell-lightwell
+  # TPA_URL, TPA_TOKEN_URL, TPA_CLIENT_ID, TPA_CLIENT_SECRET for the Trusted
+  # Profile Analyzer the regenerated inventory is validated against. Optional:
+  # without it the sbom task's validate step records that there was nothing to
+  # validate against, and the pull request carries no TPA section. Read only
+  # by that step — no session sees these credentials.
+  tpa: lightwell-tpa
+
+cache:
+  # Outlives every run. RWX because runs against *different* applications may
+  # be concurrent and would otherwise serialise on the volume
+  # (orchestration-strategy.spec.md — Two Lifetimes, Two Volumes).
+  claimName: lightwell-maven-cache
+  storageClass: ocs-external-storagecluster-cephfs
+  size: 20Gi
+
+agent:
+  # The session's turn budget. Not a credential, so it does not travel in a
+  # Secret — and it was reaching the cluster as run-agent.sh's own fallback
+  # of 25 rather than the 40 secrets.env sets, because nothing carried it.
+  # Sonnet fits in 25 and never revealed this; a model that needs more died
+  # with "turn budget exhausted" and looked like a model problem.
+  maxTurns: "40"
+
+resources:
+  # The LimitRange in this namespace caps a container at 4 CPU / 8 GiB. A
+  # request above it is rejected by the LimitRange, not the scheduler, and
+  # that error does not read as one about resources.
+  agent:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 6Gi
+  cli:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Replay fixtures are NOT part of this chart. They are test data, they live
+# with the tests in agent-runtime/test/fixtures/scenarios/, and
+# scripts/test-pipeline.sh turns each scenario directory into a ConfigMap at
+# the time it runs. Keeping them out means the GitOps-managed tree carries
+# only what a real run needs.

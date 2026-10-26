@@ -1,0 +1,96 @@
+---
+# OdhDashboardConfig, the RHOAI dashboard feature flags.
+#
+# The operator creates this singleton with almost nothing set, which leaves most
+# of the console hidden even when the DataScienceCluster component behind it is
+# Managed. The flags are the difference between "RHOAI is installed" and "RHOAI
+# is visible", and for a demo the second one is the point.
+#
+# Flags are values rather than template literals, so turning one off is a
+# readable one line diff. Applied with ServerSideApply: the object belongs to the
+# operator, we only reconcile these fields (ADR-0006).
+#
+# Same flag set as rhai-features-workshop/automation/gitops/deployments/admin/
+# dashboard-config, which runs on the same RHOAI 3.5.1.
+namespace: redhat-ods-applications
+
+# Namespaces whose MLflow prompts are offered globally in the dashboard. Points
+# at the agent namespace, which is already an MLflow workspace, so the Phase 5
+# prompt registry work has somewhere to land.
+globalMLflowNamespaces:
+  - lightwell-agents
+
+notebookController:
+  enabled: true
+  notebookNamespace: rhods-notebooks
+  pvcSize: 20Gi
+
+# Features to switch on. Anything absent keeps the operator default.
+features:
+  agentConfigManagement: true
+  agentOps: true
+  agentsCatalog: true
+  aiAssetCustomEndpoints: true
+  automl: true
+  autorag: true
+  connectionTest: true
+  deploymentWizardYAMLViewer: true
+  enablement: true
+  externalModels: true
+  externalVectorStores: true
+  featureStoreAdmin: true
+  genAiStudio: true
+  genAiTracing: true
+  globalProjectPrompts: true
+  gpuaas: true
+  guardrails: true
+  llmGatewayField: true
+  llmdTemplates: true
+  mcpCatalog: true
+  mcpRegistry: true
+  modelAsService: true
+  observabilityDashboard: true
+  projectRBAC: true
+  promptManagement: true
+  roleManagement: true
+  toolCalling: true
+  trainingJobs: true
+  vLLMDeploymentOnMaaS: true
+
+# Things the dashboard hides by default. false means visible.
+disable:
+  disableAdminConnectionTypes: false
+  disableBYONImageStream: false
+  disableClusterManager: false
+  disableCustomServingRuntimes: false
+  disableDistributedWorkloads: false
+  disableFeatureStore: false
+  disableHome: false
+  disableISVBadges: false
+  disableInfo: false
+  disableKServe: false
+  disableKServeAuth: false
+  disableKServeMetrics: false
+  disableKServeRaw: false
+  # The only tile deliberately hidden: Kueue is not installed, see the kueue
+  # note in openshift-ai/values.yaml. Advertising a feature that is not there is
+  # worse than not advertising it.
+  disableKueue: true
+  disableLLMd: false
+  disableLMEval: false
+  disableModelCatalog: false
+  disableModelRegistry: false
+  disableModelRegistrySecureDB: false
+  disableModelServing: false
+  disableNIMModelServing: false
+  disablePerformanceMetrics: false
+  disablePipelines: false
+  disableProjectScoped: false
+  disableProjectSharing: false
+  disableProjects: false
+  disableServingRuntimeParams: false
+  disableStorageClasses: false
+  disableSupport: false
+  disableTracking: false
+  disableTrustyBiasMetrics: false
+  disableUserManagement: false

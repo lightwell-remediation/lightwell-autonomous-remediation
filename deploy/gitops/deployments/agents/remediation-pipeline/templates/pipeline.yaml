@@ -1,0 +1,293 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: remediate
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    analyse → remediable? → baseline → green? → demonstrate → patch → verify
+    → sbom → deliver, with one bounded retry from verification back into
+    patching.
+
+    Behaviour contract: specs/agents/orchestration-strategy.spec.md for the
+    sequence, specs/devsecops/pipeline.spec.md for the inventory
+    Decision:           docs/adr/0009-tekton-pipeline-orchestration.md
+
+    Runs are created imperatively or by a trigger, never committed to git: a
+    PipelineRun under a GitOps-managed path is permanent drift.
+  params:
+    - name: osv
+      type: string
+      description: The vulnerability record, as a URL or a path in the workspace.
+      default: ""
+    - name: application
+      type: string
+      description: >-
+        The repository being remediated, as owner/repo. Also the key the
+        one-run-per-application claim is taken on, so it must match the label
+        on the PipelineRun.
+    - name: app-branch
+      type: string
+      description: >-
+        Which branch of the application to remediate. Empty means its
+        default. A property of the request, not of the deployment — the demo
+        fixture lives on a branch of its own.
+      default: ""
+    - name: model
+      type: string
+      description: >-
+        An invocation parameter, not deployment configuration, so Milestone 2
+        can run this Pipeline twice with different models and have a judge
+        choose between the candidates.
+      default: ""
+    - name: image
+      type: string
+      default: {{ .Values.image.agent | quote }}
+    - name: cache-claim
+      type: string
+      description: >-
+        The dependency cache claim. A plain volume rather than a workspace:
+        the affinity assistant allows one PVC-backed workspace per TaskRun,
+        and the run's own workspace is that one. See the chart helpers.
+      default: {{ .Values.cache.claimName | quote }}
+    - name: replay
+      type: string
+      description: >-
+        "true" serves recorded documents from the fixtures workspace instead
+        of starting sessions. The gates, the when expressions, the retry and
+        both workspaces are exercised exactly as in a real run, in seconds and
+        for nothing.
+      default: "false"
+  workspaces:
+    - name: source
+      description: >-
+        The checkout and the phase documents. Bound to a volumeClaimTemplate,
+        with tekton.dev/auto-cleanup-pvc on the run — without the annotation
+        the claim outlives the run under this cluster's affinity assistant
+        mode and the workspace is not actually per-run.
+    - name: fixtures
+      description: Recorded documents. Bound only when replaying.
+      optional: true
+    - name: osv
+      description: >-
+        The vulnerability record. One per run, mounted rather than fetched,
+        so the run does not depend on Lightwell being reachable from here.
+      optional: true
+
+  tasks:
+    # ── Claim ────────────────────────────────────────────────────────────
+    - name: claim-application
+      taskRef:
+        name: remediation-claim-application
+        kind: Task
+      params:
+        - name: application
+          value: $(params.application)
+        - name: run-name
+          value: $(context.pipelineRun.name)
+
+    # ── Analyse ──────────────────────────────────────────────────────────
+    - name: analyze
+      runAfter: [claim-application]
+      taskRef:
+        name: remediation-phase
+        kind: Task
+      params:
+        - name: role
+          value: analyze
+        - name: document
+          value: analysis.json
+        - name: image
+          value: $(params.image)
+        - name: osv
+          value: $(params.osv)
+        - name: model
+          value: $(params.model)
+        - name: clone
+          value: "true"
+        - name: app-branch
+          value: $(params.app-branch)
+        - name: replay
+          value: $(params.replay)
+        - name: cache-claim
+          value: $(params.cache-claim)
+        - name: fixture
+          value: analysis.json
+      workspaces: &phaseWorkspaces
+        - name: source
+          workspace: source
+        - name: fixtures
+          workspace: fixtures
+        - name: osv
+          workspace: osv
+
+    # ── Baseline ─────────────────────────────────────────────────────────
+    # After the analysis, so a run with nothing to remediate never pays for
+    # the suite. Before anything is modified, so there is still an unmodified
+    # tree to measure.
+    - name: baseline
+      runAfter: [analyze]
+      when:
+        - input: $(tasks.analyze.results.terminal-state)
+          operator: in
+          values: ["remediable"]
+      taskRef:
+        name: remediation-baseline
+        kind: Task
+      params:
+        - name: image
+          value: $(params.image)
+        - name: replay
+          value: $(params.replay)
+        - name: cache-claim
+          value: $(params.cache-claim)
+      # Not the shared list: the baseline runs the application's own suite
+      # and never reads the vulnerability record, so it is the one phase that
+      # does not take the osv workspace.
+      workspaces:
+        - name: source
+          workspace: source
+        - name: fixtures
+          workspace: fixtures
+
+    # ── Demonstrate the defect ───────────────────────────────────────────
+    # After the baseline, never before: the generated test is meant to fail,
+    # and a baseline containing it is red by construction and would stop the
+    # run before the remediation it exists to prove.
+    - name: demonstrate
+      runAfter: [baseline]
+      when:
+        - input: $(tasks.baseline.results.state)
+          operator: in
+          values: ["green"]
+      taskRef:
+        name: remediation-phase
+        kind: Task
+      params:
+        - name: role
+          value: exploit
+        - name: document
+          value: exploit.json
+        - name: image
+          value: $(params.image)
+        - name: osv
+          value: $(params.osv)
+        - name: model
+          value: $(params.model)
+        - name: replay
+          value: $(params.replay)
+        - name: cache-claim
+          value: $(params.cache-claim)
+        - name: fixture
+          value: exploit.json
+      workspaces: *phaseWorkspaces
+
+    # ── Patch and verify ─────────────────────────────────────────────────
+    # retries: 1 is the whole of the bounded retry. It re-runs every step of
+    # this Task against the same workspace, so the second attempt reads the
+    # evidence the first left in out/verification.json. The bound is a
+    # number, not a shape: there is no second copy of these phases to keep in
+    # step with this one.
+    - name: patch-and-verify
+      runAfter: [demonstrate]
+      retries: 1
+      when:
+        - input: $(tasks.demonstrate.results.terminal-state)
+          operator: in
+          values: ["demonstrated", "not-demonstrable"]
+      taskRef:
+        name: remediation-patch-and-verify
+        kind: Task
+      params:
+        - name: image
+          value: $(params.image)
+        - name: osv
+          value: $(params.osv)
+        - name: model
+          value: $(params.model)
+        - name: replay
+          value: $(params.replay)
+        - name: cache-claim
+          value: $(params.cache-claim)
+        - name: fixture-patch
+          value: patch.json
+        - name: fixture-verify
+          value: verification.json
+        - name: fixture-verify-retry
+          value: verification.retry.json
+      workspaces: *phaseWorkspaces
+
+    # ── Regenerate the bill of materials ─────────────────────────────────
+    # After verification, so it describes a tree that passed. Before
+    # delivery, because delivery commits the working tree in one go and the
+    # file has to be there already. Not a step inside patch-and-verify:
+    # that task retries, and the inventory is built once, from the attempt
+    # that succeeded.
+    - name: sbom
+      runAfter: [patch-and-verify]
+      when:
+        - input: $(tasks.patch-and-verify.results.terminal-state)
+          operator: in
+          values: ["verified"]
+      taskRef:
+        name: remediation-sbom
+        kind: Task
+      params:
+        - name: image
+          value: $(params.image)
+        - name: replay
+          value: $(params.replay)
+        - name: application
+          value: $(params.application)
+        - name: app-branch
+          value: $(params.app-branch)
+        - name: cache-claim
+          value: $(params.cache-claim)
+      workspaces:
+        - name: source
+          workspace: source
+
+    # ── Deliver ──────────────────────────────────────────────────────────
+    # Its own task, consuming a candidate it did not have to produce. That is
+    # what lets Milestone 2 put a judge between verification and delivery
+    # without restructuring the sequence.
+    - name: deliver
+      runAfter: [sbom]
+      when:
+        - input: $(tasks.patch-and-verify.results.terminal-state)
+          operator: in
+          values: ["verified"]
+      taskRef:
+        name: remediation-phase
+        kind: Task
+      params:
+        - name: role
+          value: deliver
+        - name: document
+          value: delivery.json
+        - name: image
+          value: $(params.image)
+        - name: osv
+          value: $(params.osv)
+        - name: model
+          value: $(params.model)
+        - name: replay
+          value: $(params.replay)
+        - name: cache-claim
+          value: $(params.cache-claim)
+        - name: fixture
+          value: delivery.json
+      workspaces: *phaseWorkspaces
+
+  finally:
+    - name: outcome
+      taskRef:
+        name: remediation-outcome
+        kind: Task
+      params:
+        - name: analysis-state
+          value: $(tasks.analyze.results.terminal-state)
+        - name: delivery-status
+          value: $(tasks.deliver.status)

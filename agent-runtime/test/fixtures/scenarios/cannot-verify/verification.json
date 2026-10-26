@@ -1,0 +1,21 @@
+{
+  "terminal_state": "cannot-verify",
+  "reason": "The post-change suite could not be run: dependency resolution failed for org.apache.cxf:cxf-rt-rs-security-oauth2:4.2.2.vendor-00001 against the configured repositories. Nothing can be said about the remediation either way.",
+
+  "resolved_version": null,
+  "affected_version_absent": false,
+  "reintroduced_by": null,
+
+  "baseline_tests": 3,
+  "regressions": [],
+  "missing_or_altered": [],
+  "tests_added": [],
+
+  "exploit_test": {
+    "available": true,
+    "failed_before": true,
+    "passed_after": null
+  },
+
+  "not_established": "Neither non-regression nor the defect's removal was established — the suite never executed. This is a cause the agent does not know, which is why it is not returned to patching."
+}

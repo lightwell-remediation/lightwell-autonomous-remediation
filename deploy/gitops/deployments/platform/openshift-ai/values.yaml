@@ -1,0 +1,126 @@
+---
+# DataScienceCluster.
+#
+# Enable as much as the cluster can actually serve. The earlier version of this
+# file ran dashboard and mlflowoperator only, which kept the footprint small and
+# made the RHOAI install invisible: a dashboard with every feature hidden is a
+# worse demo than no dashboard. So the rule here is the opposite now, a component
+# is Managed unless there is a reason it cannot work on this cluster, and the
+# reason is written next to it.
+#
+# This is a values decision, not an architectural one. ADR-0006 fixes how the
+# platform is installed, not which components are on, so moving a component is a
+# one line change and a sync.
+#
+# Capacity: the controllers are small, the cost is one or two pods each. See
+# deploy/README.md for the measured numbers. No GPU anywhere, inference comes
+# from MaaS (ADR-0002).
+#
+# DSCInitialization is left null: the operator creates a default one, and owning
+# it here makes ArgoCD fight the operator over defaulted fields (ADR-0006).
+dataScienceClusterInitialization: null
+
+dataScienceCluster:
+  create: true
+  # v2 is the storage version in RHOAI 3.5.
+  version: v2
+  components:
+    # The console. Feature flags are the sibling dashboard-config chart, and a
+    # hardware profile comes from hardware-profile, without which it cannot
+    # start anything.
+    dashboard:
+      managementState: Managed
+
+    # The reason RHOAI is installed at all: it serves the MLflow CR that the
+    # mlflow chart creates. Phase 4.5 tracing and the Phase 5 prompt registry
+    # both land on it.
+    mlflowoperator:
+      managementState: Managed
+
+    # Notebooks. Nothing in the remediation flow needs one, but it is the first
+    # thing anybody opens in the dashboard, and it is how a human inspects what
+    # an agent did without a laptop setup.
+    workbenches:
+      managementState: Managed
+      workbenchNamespace: rhods-notebooks
+
+    # Data Science Pipelines. Phase 3 uses Tekton, not this, so it is on for the
+    # dashboard rather than for us.
+    aipipelines:
+      managementState: Managed
+
+    # Model serving. Not in the inference path, MaaS is (ADR-0002), but it is
+    # what the model serving half of the dashboard talks to, and Milestone 2
+    # wants a second model for the dual agent work.
+    # Raw deployment, so no Service Mesh and no Serverless dependency.
+    kserve:
+      managementState: Managed
+      nim:
+        managementState: Managed
+      rawDeploymentServiceConfig: Headed
+
+    # Provides the EvalHub and NemoGuardrails CRDs, which are the Milestone 2
+    # evaluation and guardrails items. Code execution and network access in
+    # evaluations stay denied, an evaluation harness is not a sandbox.
+    trustyai:
+      managementState: Managed
+      eval:
+        lmeval:
+          permitCodeExecution: deny
+          permitOnline: deny
+
+    modelregistry:
+      managementState: Managed
+      registriesNamespace: rhoai-model-registries
+
+    # Llama Stack playground. Replaces llamastackoperator in 3.5.
+    ogx:
+      managementState: Managed
+
+    # Extra controllers. Each is an operator and little else until something
+    # creates its CRs, and having the CRDs present means a Milestone 2 chart can
+    # be tried without a platform change first.
+    ray:
+      managementState: Managed
+    trainingoperator:
+      managementState: Managed
+    feastoperator:
+      managementState: Managed
+
+    # Off, with reasons.
+    #
+    # trainer is Kubeflow Trainer v2 and it asks for an operator this cluster
+    # cannot get: "JobSet operator not installed, please install it first", and
+    # jobset-operator is not in the catalog here. It is the only component that
+    # kept the whole DataScienceCluster NotReady, since an unmet precondition
+    # counts against ComponentsReady. trainingoperator, the v1 it replaces, is
+    # Managed and Ready.
+    trainer:
+      managementState: Removed
+    #
+    # kueue no longer accepts Managed in RHOAI 3.5, the v2 validating webhook
+    # answers "Managed is no longer supported as a managementState" and denies
+    # the whole DataScienceCluster, not just that field. Kueue moved out to the
+    # standalone Red Hat build of Kueue, so the DSC only integrates with it:
+    # install the kueue-operator (channel stable-v1.4 in the catalog) and set
+    # this to Unmanaged, which the webhook does accept. Nothing in this project
+    # queues batch workloads, so installing another operator to light up one
+    # dashboard tile is debt, not a feature. The dashboard hides Kueue to match.
+    kueue:
+      managementState: Removed
+    #
+    # aigateway serves the maas.opendatahub.io CRs, and the MaaS platform under
+    # it (Kuadrant, Authorino, the gateway, maas-api) is installed by
+    # rhoai-maas-guide's setup-maas.sh, not by the DSC. This cluster has none of
+    # it and we consume an external MaaS instead, so enabling this would leave a
+    # component waiting for a platform that is never going to arrive. The
+    # workshop repo installs that platform first, which is why it can enable it.
+    aigateway:
+      managementState: Removed
+
+# One condition stays PreConditionFailed by design. With kserve Managed the DSC
+# reports KserveLLMInferenceServiceDependencies as "Red Hat Connectivity Link
+# not installed". That is the Kuadrant stack the MaaS platform brings, it only
+# gates LLMInferenceService and not kserve itself, which is Ready, and it does
+# not count against ComponentsReady. Install rhcl-operator if anyone ever wants
+# llm-d style serving here.

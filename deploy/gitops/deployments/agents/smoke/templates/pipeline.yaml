@@ -1,0 +1,37 @@
+---
+# {{ .Values.concurrency }} selftest tasks in parallel, one workspace each, which
+# is the Phase 0.5 capacity target: two agents working at the same time.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: agent-runtime-smoke
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell
+spec:
+  description: >-
+    Bootstrap validation. Runs {{ .Values.concurrency }} agent shaped tasks at
+    the same time, each on its own workspace, plus the MaaS credential check.
+  workspaces:
+{{- range $i := until (int .Values.concurrency) }}
+    - name: session-{{ add $i 1 }}
+{{- end }}
+  tasks:
+{{- range $i := until (int .Values.concurrency) }}
+    - name: agent-{{ add $i 1 }}
+      taskRef:
+        name: agent-runtime-selftest
+        kind: Task
+      params:
+        - name: session
+          value: agent-{{ add $i 1 }}
+      workspaces:
+        - name: session
+          workspace: session-{{ add $i 1 }}
+{{- end }}
+{{- if .Values.checkMaas }}
+    - name: maas
+      taskRef:
+        name: maas-reachable
+        kind: Task
+{{- end }}

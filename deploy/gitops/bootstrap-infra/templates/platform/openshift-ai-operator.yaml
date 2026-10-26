@@ -1,0 +1,41 @@
+{{- if and .Values.platform.enabled .Values.platform.openshiftAiOperator.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-openshift-ai-operator
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave -5: nothing that needs RHOAI CRDs can sync before this.
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: redhat-ods-operator
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/openshift-ai-operator") }}
+    helm:
+      valuesObject:
+        operator:
+          channel: {{ .Values.platform.openshiftAiOperator.channel | quote }}
+          startingCSV: {{ .Values.platform.openshiftAiOperator.startingCSV | quote }}
+  syncPolicy:
+    automated:
+      # prune false: pruning a Subscription uninstalls the operator, and a bad
+      # sync should not take RHOAI with it.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

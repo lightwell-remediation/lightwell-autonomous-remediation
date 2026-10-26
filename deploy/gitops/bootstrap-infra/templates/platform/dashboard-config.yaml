@@ -1,0 +1,45 @@
+{{- if and .Values.platform.enabled .Values.platform.dashboardConfig.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-dashboard-config
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave -1: after the DSC at -4, since the dashboard component is what creates
+    # the singleton this patches, and before anything that wants the console.
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: redhat-ods-applications
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/dashboard-config") }}
+    helm:
+      valuesObject:
+        # The agent namespace is already an MLflow workspace, so global prompts
+        # have somewhere to live when Phase 5 versions them.
+        globalMLflowNamespaces:
+          - {{ .Values.agents.namespace }}
+  syncPolicy:
+    automated:
+      # prune false: pruning this would delete a singleton the operator owns.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+      # The operator creates OdhDashboardConfig and defaults fields in it. We
+      # reconcile our flags and adopt the rest instead of fighting over it.
+      - ServerSideApply=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

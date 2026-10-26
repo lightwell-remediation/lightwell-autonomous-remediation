@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: openshift-pipelines
+description: Red Hat OpenShift Pipelines operator subscription (Tekton). The TektonConfig stays operator owned
+type: application
+version: 0.1.0
+appVersion: "1.24"

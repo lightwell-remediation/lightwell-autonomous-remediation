@@ -1,0 +1,42 @@
+{{- if and .Values.platform.enabled .Values.platform.mlflow.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-mlflow
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave 0: needs the mlflowoperator component from the DSC at wave -4.
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: redhat-ods-applications
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/mlflow") }}
+    helm:
+      valuesObject:
+        # MLflow discovers workspaces by namespace label, so the agent
+        # namespace has to be one of them. Keeps Phase 4.5 a config change.
+        workspaceLabel:
+          key: opendatahub.io/dashboard
+          value: "true"
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The MLflow CRD arrives with the mlflowoperator component.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

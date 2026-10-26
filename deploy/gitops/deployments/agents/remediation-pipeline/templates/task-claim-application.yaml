@@ -1,0 +1,73 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-claim-application
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    Refuse to start where another run is already remediating this application
+    (orchestration-strategy.spec.md — One Run per Application). Two runs
+    sharing a workspace hang; two in separate workspaces both branch from the
+    same base and open competing pull requests, and merging either invalidates
+    the other's verification.
+
+    Runs under its own service account. The agent's holds no Role on purpose —
+    the agent does not talk to the Kubernetes API, and listing PipelineRuns
+    would be the only reason it ever had to.
+  params:
+    - name: application
+      type: string
+      description: The repository this run remediates, as owner/repo.
+    - name: run-name
+      type: string
+      description: This PipelineRun's own name, so it does not block itself.
+    - name: image
+      type: string
+      default: {{ .Values.image.cli | quote }}
+  results:
+    - name: application
+      description: Echoed back so the claim is visible in the run's results.
+  steps:
+    - name: claim
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.cliResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+
+        # A PipelineRun with no completionTime has not finished. Reading the
+        # field directly beats interpreting conditions, which carry different
+        # reasons for cancelled, timed out and still-running.
+        listing="$(
+          oc get pipelineruns.tekton.dev \
+            -l "lightwell.dev/application=$(params.application)" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.completionTime}{"\n"}{end}' \
+          2>&1
+        )"
+        if [ $? -ne 0 ]; then
+          # Fail closed. A claim that cannot see the other runs grants
+          # nothing — it would let every run through while looking like it
+          # was guarding them, which is worse than not having it.
+          echo "cannot list PipelineRuns, so the claim cannot be made:" >&2
+          echo "$listing" >&2
+          exit 1
+        fi
+
+        others="$(printf '%s\n' "$listing" | awk 'NF == 1 { print $1 }' \
+          | grep -vx "$(params.run-name)" || true)"
+
+        if [ -n "$others" ]; then
+          echo "another run is already remediating $(params.application):" >&2
+          echo "$others" >&2
+          echo "refusing to start; nothing has been changed" >&2
+          exit 1
+        fi
+
+        # Not atomic: another run could pass this check between the list and
+        # the start. The window is milliseconds against runs of minutes, and
+        # saying so is better than implying a guarantee this does not give.
+        printf '%s' "$(params.application)" > "$(results.application.path)"
+        echo "claimed $(params.application)"

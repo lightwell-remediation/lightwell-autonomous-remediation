@@ -1,0 +1,37 @@
+{{- if and .Values.platform.enabled .Values.platform.openshiftPipelines.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-openshift-pipelines
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave -5: the smoke pipeline at wave 2 needs the Tekton CRDs.
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: openshift-operators
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/openshift-pipelines") }}
+    helm:
+      valuesObject:
+        operator:
+          channel: {{ .Values.platform.openshiftPipelines.channel | quote }}
+          startingCSV: {{ .Values.platform.openshiftPipelines.startingCSV | quote }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

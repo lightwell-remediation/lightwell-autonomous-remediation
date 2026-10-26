@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: mlflow
+description: MLflow tracking server (cluster scoped CR served by the RHOAI MLflow operator)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

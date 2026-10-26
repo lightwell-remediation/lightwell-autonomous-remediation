@@ -1,0 +1,79 @@
+---
+# What the agent needs from the cluster, checked in the same conditions a real
+# run gets: the runtime image, a random UID with GID 0, a mounted workspace and
+# a writable Maven cache.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: agent-runtime-selftest
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell
+spec:
+  description: >-
+    Verifies the agent runtime image can do the work a remediation session
+    needs: the toolchain resolves, the workspace is writable, and Maven can
+    write its local repository under an arbitrary UID.
+  params:
+    - name: session
+      type: string
+      description: Label used in the output, so parallel runs are tellable apart.
+      default: session
+  workspaces:
+    - name: session
+      description: Per run workspace, same shape a remediation run gets.
+  steps:
+    - name: check
+      image: {{ .Values.image | quote }}
+      # The image entrypoint starts a harness session. Here we only want the
+      # toolchain, so the script replaces it.
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        echo "session   : $(params.session)"
+        echo "uid/gid   : $(id -u)/$(id -g)"
+        echo "home      : ${HOME:-unset}"
+        echo "workspace : $(workspaces.session.path)"
+        echo
+
+        # Every tool the permission allowlist in agent-runtime/claude/settings.json
+        # grants. A missing one does not deny anything at runtime, the session
+        # just ends green having done nothing, which is the failure mode the
+        # exit status contract exists to prevent.
+        missing=0
+        for tool in claude git gh java mvn node; do
+          if command -v "$tool" >/dev/null 2>&1; then
+            printf '  %-6s ok\n' "$tool"
+          else
+            printf '  %-6s MISSING\n' "$tool"
+            missing=1
+          fi
+        done
+        (( missing == 0 )) || { echo "image is missing tools the allowlist grants"; exit 1; }
+        echo
+
+        echo "versions:"
+        java -version 2>&1 | head -1
+        mvn -v 2>&1 | head -1
+        git --version
+        gh --version | head -1
+        claude --version
+
+        # A session writes its clone and its artifacts here.
+        out="$(workspaces.session.path)/out"
+        mkdir -p "$out"
+        echo "$(params.session) ok" > "$out/selftest.txt"
+        test -s "$out/selftest.txt"
+        echo "workspace write: ok"
+
+        # Maven under an arbitrary UID needs a group writable ~/.m2 or the first
+        # dependency download fails. This is the check the Containerfile exists
+        # for.
+        m2="${HOME:-/tmp}/.m2"
+        mkdir -p "$m2"
+        touch "$m2/.lightwell-probe"
+        rm -f "$m2/.lightwell-probe"
+        echo "maven cache write: ok"
+      computeResources:
+        {{- toYaml .Values.resources | nindent 8 }}

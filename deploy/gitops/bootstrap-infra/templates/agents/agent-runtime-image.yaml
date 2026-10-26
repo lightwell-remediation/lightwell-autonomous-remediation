@@ -1,0 +1,50 @@
+{{- if and .Values.agents.enabled .Values.agents.runtimeImage.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agents-runtime-image
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave 1: after the namespace exists.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: {{ .Values.agents.namespace }}
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "agents/agent-runtime-image") }}
+    helm:
+      valuesObject:
+        namespace: {{ .Values.agents.namespace }}
+        claudeCodeVersion: {{ .Values.agents.runtimeImage.claudeCodeVersion | quote }}
+        ghVersion: {{ .Values.agents.runtimeImage.ghVersion | quote }}
+        upstream:
+          repo: {{ .Values.agents.runtimeImage.upstreamRepo | quote }}
+          ref: {{ .Values.agents.runtimeImage.upstreamRef | quote }}
+        app:
+          # The repo defaults to whatever ArgoCD tracks. The ref does not:
+          # see agents.runtimeImage.appRepoRef in values.yaml for why the
+          # agent runtime is pinned to main rather than following the branch
+          # these manifests are developed on.
+          repo: {{ .Values.agents.runtimeImage.appRepo | default .Values.bootstrap.repoURL | quote }}
+          ref: {{ .Values.agents.runtimeImage.appRepoRef | default .Values.bootstrap.targetRevision | quote }}
+          sourceSecret: {{ .Values.agents.runtimeImage.sourceSecret | quote }}
+        resources:
+          {{- toYaml .Values.agents.runtimeImage.resources | nindent 10 }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

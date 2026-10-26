@@ -1,0 +1,28 @@
+---
+# Plain OpenShift cluster: we install the platform.
+#
+# Default preset. Validated on OCP 4.21 single node, 32 CPU / 126 GiB, ODF
+# storage, with no RHOAI, no GitOps and no Tekton at the start.
+#
+# Everything here is already the chart default. The file exists so the two
+# cluster shapes are symmetric and the preset is explicit in the command you run.
+
+platform:
+  enabled: true
+  openshiftAiOperator:
+    enabled: true
+  openshiftAi:
+    enabled: true
+  dashboardConfig:
+    enabled: true
+  hardwareProfile:
+    enabled: true
+  openshiftPipelines:
+    enabled: true
+  mlflow:
+    enabled: true
+  developerHub:
+    enabled: false
+
+agents:
+  enabled: true

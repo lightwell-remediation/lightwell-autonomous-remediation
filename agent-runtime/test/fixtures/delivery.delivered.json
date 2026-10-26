@@ -1,0 +1,7 @@
+{
+  "terminal_state": "delivered",
+  "branch": "remediate/x-vendor-cve-2026-68079-4.2.2-20261016213625",
+  "base": "feat/reachable-cve",
+  "pull_request": "https://github.com/lightwell-remediation/lw-apache-cxf-demo/pull/2",
+  "commit": "4e3c50ca05b89e806b05a078a267fa7cbb53ad69"
+}

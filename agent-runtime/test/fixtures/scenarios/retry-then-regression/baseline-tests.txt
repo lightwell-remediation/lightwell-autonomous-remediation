@@ -1,0 +1,3 @@
+com.lightwell.cxf.hello.HelloWorldResourceTest#rejectsRequestWithUnknownBearerToken	pass
+com.lightwell.cxf.hello.HelloWorldResourceTest#rejectsRequestWithoutBearerToken	pass
+com.lightwell.cxf.hello.HelloWorldResourceTest#returnsHelloWorldWhenBearerTokenIsValid	pass

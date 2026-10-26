@@ -1,0 +1,57 @@
+---
+# A replayed run: recorded documents instead of sessions. No MaaS, no GitHub,
+# no Lightwell credentials, no tokens spent.
+#
+# Prefer scripts/test-pipeline.sh, which creates the scenario's ConfigMap and
+# then asserts the outcome. Starting this by hand runs the sequence but
+# checks nothing.
+#
+#   oc create configmap replay-delivered \
+#     --from-file=agent-runtime/test/fixtures/scenarios/delivered
+#   oc create -f deploy/pipelineruns/replay.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: replay-
+  namespace: lightwell-agents
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+    lightwell.dev/application: replay-delivered
+  annotations:
+    tekton.dev/auto-cleanup-pvc: "true"
+spec:
+  pipelineRef:
+    name: remediate
+  taskRunTemplate:
+    serviceAccountName: lightwell-agent
+  # The claim is the one task that talks to the Kubernetes API, and it runs
+  # under its own identity. taskRunTemplate sets the default for every task;
+  # this overrides it for that one, which is how the agent's service account
+  # keeps holding no Role at all.
+  taskRunSpecs:
+    - pipelineTaskName: claim-application
+      serviceAccountName: lightwell-run-claim
+  timeouts:
+    # A replay is seconds of work. A generous ceiling still catches a run
+    # that is waiting on something rather than doing anything.
+    pipeline: 0h15m0s
+  params:
+    # Each scenario claims a distinct application so replays of different
+    # scenarios can run at once without the claim refusing them — which is
+    # the claim working correctly, not a problem to configure around.
+    - name: application
+      value: replay-delivered
+    - name: replay
+      value: "true"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          storageClassName: ocs-external-storagecluster-ceph-rbd
+          resources:
+            requests:
+              storage: 1Gi
+    - name: fixtures
+      configMap:
+        name: replay-delivered

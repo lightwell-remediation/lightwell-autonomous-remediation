@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: smoke
+description: Tekton Task and Pipeline that prove the cluster can run agent workloads in parallel
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

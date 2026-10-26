@@ -1,0 +1,43 @@
+{{- if and .Values.platform.enabled .Values.platform.openshiftAi.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-openshift-ai
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave -4: after the operator, which is what provides the DSC CRD.
+    argocd.argoproj.io/sync-wave: "-4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: redhat-ods-operator
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/openshift-ai") }}
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      # The DSC CRD only exists once the operator installed.
+      - SkipDryRunOnMissingResource=true
+      # The operator defaults a lot of the DSC. Adopt those defaults instead of
+      # fighting them on every sync.
+      - ServerSideApply=true
+    # Deliberately shorter than the other Applications. Retries are here for the
+    # CRD race, which clears in seconds, but an admission webhook denial is
+    # permanent and ArgoCD keeps retrying the rejected revision while ignoring
+    # the commit that fixes it. 20 attempts at up to 5 minutes meant an hour of
+    # a stuck bootstrap. See the troubleshooting table in deploy/README.md.
+    retry:
+      limit: 5
+      backoff:
+        duration: 20s
+        maxDuration: 2m
+        factor: 2
+{{- end }}

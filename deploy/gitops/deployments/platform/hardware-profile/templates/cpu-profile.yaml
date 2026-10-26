@@ -1,0 +1,28 @@
+---
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: {{ .Values.profile.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: hardwareprofile
+    app.opendatahub.io/hardwareprofile: "true"
+  annotations:
+    opendatahub.io/display-name: {{ .Values.profile.displayName | quote }}
+    opendatahub.io/description: {{ .Values.profile.description | quote }}
+    opendatahub.io/disabled: "false"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  identifiers:
+    - identifier: cpu
+      displayName: CPU
+      resourceType: CPU
+      defaultCount: {{ .Values.profile.cpu.default | quote }}
+      minCount: {{ .Values.profile.cpu.min }}
+      maxCount: {{ .Values.profile.cpu.max }}
+    - identifier: memory
+      displayName: Memory
+      resourceType: Memory
+      defaultCount: {{ .Values.profile.memory.default }}
+      minCount: {{ .Values.profile.memory.min }}
+      maxCount: {{ .Values.profile.memory.max }}

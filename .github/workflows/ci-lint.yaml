@@ -1,0 +1,67 @@
+---
+name: CI — Lint
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  yaml-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: YAML lint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: .
+          config_data: |
+            extends: default
+            # Helm templates are not YAML until they are rendered: "{{ .Values.x }}"
+            # trips the braces rule and "{{- if }}" is a syntax error. They are
+            # checked by the helm job below, which renders them first.
+            ignore: |
+              **/templates/
+            rules:
+              line-length:
+                max: 200
+              truthy:
+                check-keys: false
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: Lint charts
+        run: |
+          helm lint deploy/gitops/bootstrap-infra
+          for chart in deploy/gitops/deployments/*/*/; do
+            helm lint "$chart"
+          done
+      - name: Render both cluster presets
+        run: |
+          for preset in deploy/values/cluster-plain.yaml \
+                        deploy/values/cluster-rhoai-existing.yaml; do
+            echo "::group::$preset"
+            helm template lightwell-bootstrap deploy/gitops/bootstrap-infra -f "$preset"
+            echo "::endgroup::"
+          done
+      - name: Render every component chart
+        run: |
+          for chart in deploy/gitops/deployments/*/*/; do
+            echo "::group::$chart"
+            helm template test "$chart"
+            echo "::endgroup::"
+          done
+
+  shell-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck --severity=warning deploy/scripts/*.sh agent-runtime/*.sh

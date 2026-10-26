@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: openshift-ai
+description: Minimal DataScienceCluster for Lightwell (dashboard and MLflow only, inference comes from MaaS)
+type: application
+version: 0.1.0
+appVersion: "3.5"

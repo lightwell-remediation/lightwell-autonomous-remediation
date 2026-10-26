@@ -1,0 +1,55 @@
+---
+# Our layer: the language toolchain, run-agent.sh, the permission file and the
+# exit status check. Chained to the base through dockerStrategy.from plus an
+# image change trigger, so bumping claudeCodeVersion rebuilds both in order.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: {{ .Values.images.runtime }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell
+spec:
+  source:
+    type: Git
+    git:
+      uri: {{ .Values.app.repo | quote }}
+      ref: {{ .Values.app.ref | quote }}
+    {{- with .Values.app.sourceSecret }}
+    sourceSecret:
+      name: {{ . | quote }}
+    {{- end }}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: {{ .Values.app.dockerfilePath }}
+      # Overrides the FROM in the Containerfile. The build argument carries the
+      # same reference so the file stays identical for a local podman build.
+      from:
+        kind: ImageStreamTag
+        name: {{ .Values.images.base }}:{{ .Values.claudeCodeVersion }}
+      buildArgs:
+        - name: BASE_IMAGE
+          value: "image-registry.openshift-image-registry.svc:5000/{{ .Values.namespace }}/{{ .Values.images.base }}:{{ .Values.claudeCodeVersion }}"
+        - name: GH_VERSION
+          value: {{ .Values.ghVersion | quote }}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: {{ .Values.images.runtime }}:{{ .Values.claudeCodeVersion }}
+  resources:
+    {{- toYaml .Values.resources | nindent 4 }}
+  completionDeadlineSeconds: {{ .Values.completionDeadlineSeconds }}
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
+  # ImageChange only, no ConfigChange on purpose. A ConfigChange fires a build
+  # the moment the object is created, which on a fresh cluster is before the base
+  # image exists, so the first build of a new cluster would always be a failure
+  # sitting in the history. The image change trigger waits for the base tag and
+  # then chains, which is the behaviour we want anyway.
+  triggers:
+    - type: ImageChange
+      imageChange:
+        from:
+          kind: ImageStreamTag
+          name: {{ .Values.images.base }}:{{ .Values.claudeCodeVersion }}

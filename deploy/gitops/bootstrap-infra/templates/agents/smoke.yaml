@@ -1,0 +1,45 @@
+{{- if and .Values.agents.enabled .Values.agents.smoke.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agents-smoke
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave 2: needs the Tekton CRDs from the Pipelines operator.
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: {{ .Values.agents.namespace }}
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "agents/smoke") }}
+    helm:
+      valuesObject:
+        namespace: {{ .Values.agents.namespace }}
+        image: {{ include "bootstrap.imageRef" (dict "ctx" . "name" "lightwell-agent-runtime") | quote }}
+        concurrency: {{ .Values.agents.concurrency }}
+        checkMaas: {{ .Values.agents.smoke.checkMaas }}
+        resources:
+          {{- toYaml .Values.agents.resources | nindent 10 }}
+        secrets:
+          {{- toYaml .Values.secrets | nindent 10 }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Tekton CRDs may not be there on the first sync.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

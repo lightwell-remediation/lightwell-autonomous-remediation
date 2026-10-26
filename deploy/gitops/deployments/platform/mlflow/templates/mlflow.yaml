@@ -1,0 +1,20 @@
+---
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  backendStoreUri: {{ .Values.backendStoreUri | quote }}
+  serveArtifacts: true
+  artifactsDestination: {{ .Values.artifactsDestination | quote }}
+  storage:
+    accessModes:
+      - {{ .Values.storage.accessMode }}
+    resources:
+      requests:
+        storage: {{ .Values.storage.size }}
+  workspaceLabelSelector:
+    matchLabels:
+      {{ .Values.workspaceLabel.key }}: {{ .Values.workspaceLabel.value | quote }}

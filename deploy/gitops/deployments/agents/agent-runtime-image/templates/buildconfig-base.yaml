@@ -1,0 +1,37 @@
+---
+# Upstream Red Hat starter kit image. Built here because upstream forbids
+# redistributing it: it carries Anthropic's proprietary binary.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: {{ .Values.images.base }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell
+spec:
+  source:
+    type: Git
+    git:
+      uri: {{ .Values.upstream.repo | quote }}
+      ref: {{ .Values.upstream.ref | quote }}
+    contextDir: {{ .Values.upstream.contextDir }}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+      buildArgs:
+        # Upstream pins a Claude Code that predates --permission-prompts, which
+        # run-agent.sh passes, so the version has to be set here.
+        - name: CLAUDE_CODE_VERSION
+          value: {{ .Values.claudeCodeVersion | quote }}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: {{ .Values.images.base }}:{{ .Values.claudeCodeVersion }}
+  resources:
+    {{- toYaml .Values.resources | nindent 4 }}
+  completionDeadlineSeconds: {{ .Values.completionDeadlineSeconds }}
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
+  triggers:
+    - type: ConfigChange

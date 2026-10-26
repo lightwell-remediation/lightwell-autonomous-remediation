@@ -1,0 +1,99 @@
+# Agent runtime image — see docs/adr/0003-agent-runtime-packaging-and-credentials.md
+#
+# Layered on the Red Hat agentic-starter-kits Claude Code image rather than
+# forking its Containerfile, so upstream changes arrive without conflicts.
+# That image cannot be redistributed (it contains Anthropic's proprietary
+# binary), so it has to be built first. Use build-image.sh, which pins the
+# upstream ref and the Claude Code version and builds both images.
+
+ARG BASE_IMAGE=localhost/upstream-claude-code:latest
+FROM ${BASE_IMAGE}
+
+ARG GH_VERSION=2.63.2
+# Produces the bill of materials after a remediation. Pinned rather than
+# "latest" so the document a run emits does not change shape because a
+# release happened between two runs.
+ARG SYFT_VERSION=1.54.1
+
+USER 0
+
+# The agent must be able to run the target project's tests; a fix it cannot
+# verify is worth nothing. The sample application is Java/Maven, matching the
+# build commands in claude/settings.json. Node is kept for check-result.js.
+RUN microdnf install -y --nodocs \
+        java-21-openjdk-devel \
+        maven \
+        nodejs \
+        tar \
+        unzip \
+        gzip \
+        diffutils \
+        patch \
+        which \
+ && microdnf clean all \
+ && rm -rf /var/cache/yum
+
+# gh is not in the UBI repositories; upstream documents this same install.
+RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+    | tar -xz -C /usr/local/bin --strip-components=2 "gh_${GH_VERSION}_linux_amd64/bin/gh" \
+ && chmod 0755 /usr/local/bin/gh
+
+# syft is distributed the same way, and its installer honours a pinned tag.
+RUN curl -fsSL "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
+    | tar -xz -C /usr/local/bin syft \
+ && chmod 0755 /usr/local/bin/syft
+
+COPY agent-runtime/run-agent.sh /usr/local/bin/run-agent.sh
+COPY agent-runtime/run-suite.sh /usr/local/bin/run-suite.sh
+COPY agent-runtime/generate-sbom.sh /usr/local/bin/generate-sbom.sh
+COPY agent-runtime/validate-sbom.sh /usr/local/bin/validate-sbom.sh
+COPY agent-runtime/tpa.sh /usr/local/bin/tpa.sh
+COPY agent-runtime/lib/ /opt/agent-runtime/lib/
+COPY agent-runtime/claude/ /opt/agent-runtime/claude/
+COPY agent-runtime/prompts/ /opt/agent-runtime/prompts/
+
+# SETTINGS_DIR rather than SETTINGS_FILE: pinning the file here would defeat the
+# per-role policy lookup in run-agent.sh and every role would run under the
+# default allowlist. SETTINGS_FILE still overrides, for a one-off invocation.
+ENV SECRETS_FILE=/dev/null \
+    SETTINGS_DIR=/opt/agent-runtime/claude \
+    PROMPTS_DIR=/opt/agent-runtime/prompts \
+    CHECK_RESULT=/opt/agent-runtime/lib/check-result.js \
+    CHECK_ANALYSIS=/opt/agent-runtime/lib/check-analysis.js \
+    TRACE_SUMMARY=/opt/agent-runtime/lib/trace-summary.js \
+    TEST_RESULTS=/opt/agent-runtime/lib/test-results.js \
+    CHECK_PATCH=/opt/agent-runtime/lib/check-patch.js \
+    CHECK_VERIFICATION=/opt/agent-runtime/lib/check-verification.js \
+    CHECK_DELIVERY=/opt/agent-runtime/lib/check-delivery.js \
+    CHECK_EXPLOIT=/opt/agent-runtime/lib/check-exploit.js \
+    ASSESS_EXPLOIT=/opt/agent-runtime/lib/assess-exploit.js \
+    API_SIGNATURES=/opt/agent-runtime/lib/api-signatures.sh \
+    GOVERNED_ARTIFACTS=/opt/agent-runtime/lib/governed-artifacts.js \
+    RUN_SUITE=/usr/local/bin/run-suite.sh \
+    GENERATE_SBOM=/usr/local/bin/generate-sbom.sh \
+    VALIDATE_SBOM=/usr/local/bin/validate-sbom.sh \
+    TPA=/usr/local/bin/tpa.sh \
+    TPA_VERDICT=/opt/agent-runtime/lib/tpa-verdict.js \
+    TPA_SECTION=/opt/agent-runtime/lib/tpa-section.js \
+    WORKSPACE=/workspace
+
+# Maven writes its local repository under HOME; under an arbitrary UID that
+# directory must be group-writable or the first dependency download fails.
+#
+# /opt/agent-runtime stays group-readable but NOT writable: the allowlist lets
+# the agent run the project's tests, and test code that could rewrite
+# check-result.js or settings.json would be able to mark its own run green.
+RUN mkdir -p /home/claude-agent/.m2 \
+ && chmod 0755 /usr/local/bin/run-agent.sh /usr/local/bin/run-suite.sh \
+                /usr/local/bin/generate-sbom.sh /usr/local/bin/validate-sbom.sh \
+                /usr/local/bin/tpa.sh \
+ && chmod 0755 /opt/agent-runtime/lib/api-signatures.sh \
+ && chgrp -R 0 /home/claude-agent/.m2 /opt/agent-runtime \
+ && chmod -R g=u /home/claude-agent/.m2 \
+ && chmod -R g=rX /opt/agent-runtime
+
+USER 1001
+
+# Upstream's entrypoint runs its own setup — onboarding, git credentials, MCP,
+# skills, MLflow tracing — and then execs whatever command it is given.
+ENTRYPOINT ["entrypoint.sh", "/usr/local/bin/run-agent.sh"]

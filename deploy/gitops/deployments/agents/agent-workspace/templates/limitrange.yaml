@@ -1,0 +1,29 @@
+{{- if .Values.limitRange.enabled }}
+---
+# Defaults and a ceiling, no ResourceQuota. A run that declares nothing still
+# gets a usable share, and one run cannot take the whole node. A hard quota
+# would instead fail a build at the worst possible moment, which is why the
+# number of parallel sessions is a documented budget and not an enforced one.
+#
+# Budget: {{ .Values.concurrency }} sessions at {{ .Values.resources.limits.cpu }} CPU
+# and {{ .Values.resources.limits.memory }} each.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: lightwell-agent-budget
+  namespace: {{ .Values.namespace }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.resources.limits.cpu | quote }}
+        memory: {{ .Values.resources.limits.memory }}
+      defaultRequest:
+        cpu: {{ .Values.resources.requests.cpu | quote }}
+        memory: {{ .Values.resources.requests.memory }}
+      max:
+        # Twice the session limit, so an image build (which is heavier than a
+        # session) still fits without a second LimitRange.
+        cpu: "4"
+        memory: 8Gi
+{{- end }}

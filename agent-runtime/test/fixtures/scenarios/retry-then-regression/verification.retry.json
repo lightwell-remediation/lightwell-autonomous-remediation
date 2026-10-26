@@ -1,0 +1,23 @@
+{
+  "terminal_state": "regression",
+  "reason": "The informed second attempt restored the audit counter but broke a different baseline test: the unknown-token path now returns 500 instead of 401. Still regressing after one correction, so the attempt is exhausted.",
+  "resolved_version": "4.2.2.vendor-00001",
+  "affected_version_absent": true,
+  "reintroduced_by": null,
+  "baseline_tests": 3,
+  "regressions": [
+    {
+      "test": "com.lightwell.cxf.hello.HelloWorldResourceTest#rejectsRequestWithUnknownBearerToken",
+      "attribution": "regression",
+      "detail": "Passed on the unmodified checkout, returns HTTP 500 after the second attempt."
+    }
+  ],
+  "missing_or_altered": [],
+  "tests_added": [],
+  "exploit_test": {
+    "available": true,
+    "failed_before": true,
+    "passed_after": true
+  },
+  "not_established": "Two attempts have each broken a baseline test. The remediation is not converging and the evidence is in this document."
+}

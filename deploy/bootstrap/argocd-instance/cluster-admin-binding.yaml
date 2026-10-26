@@ -1,0 +1,16 @@
+---
+# The application controller installs operators and creates cluster scoped
+# resources (Subscriptions, a DataScienceCluster, namespaces), so it needs
+# cluster-admin. Same posture as the rhoai-nightly and workshop clusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lightwell-argocd-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops

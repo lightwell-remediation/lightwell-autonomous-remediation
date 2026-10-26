@@ -1,0 +1,33 @@
+---
+# Copy to deploy/values/local.yaml (gitignored) for anything specific to the
+# cluster in front of you. Applied last, so it wins over the preset.
+#
+#   cp deploy/values/local.example.yaml deploy/values/local.yaml
+#
+# No credentials here. Those come from secrets/secrets.env through
+# make secrets (ADR-0007), and this file is rendered into ArgoCD Applications
+# that anyone with cluster access can read.
+
+bootstrap:
+  # Point ArgoCD at your fork or your branch while a change is still in review.
+  # ArgoCD reconciles from git, not from your laptop, so a branch that is not
+  # pushed does not exist as far as the cluster is concerned.
+  repoURL: https://github.com/lightwell-remediation/lightwell-autonomous-remediation
+  targetRevision: main
+
+cluster:
+  # oc get ingresses.config cluster -o jsonpath='{.spec.domain}'
+  domain: apps.cluster-example.dyn.redhatworkshops.io
+
+# platform:
+#   openshiftAiOperator:
+#     # Pin for a reproducible event instead of tracking the channel.
+#     startingCSV: rhods-operator.3.5.1
+
+# agents:
+#   # Raise when Milestone 2 runs more agents at once. It drives the LimitRange
+#   # ceiling and how many parallel tasks make validate runs.
+#   concurrency: 2
+#   runtimeImage:
+#     # Bump together with agent-runtime/build-image.sh.
+#     claudeCodeVersion: "2.1.295"

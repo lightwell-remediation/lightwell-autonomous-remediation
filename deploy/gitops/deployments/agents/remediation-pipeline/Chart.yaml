@@ -1,0 +1,10 @@
+---
+apiVersion: v2
+name: remediation-pipeline
+description: >-
+  Tekton Pipeline that sequences the remediation phases against one
+  vulnerability record. Behaviour contract: specs/agents/orchestration-strategy.spec.md
+  Decision: docs/adr/0009-tekton-pipeline-orchestration.md
+type: application
+version: 0.1.0
+appVersion: "1.0"

@@ -1,0 +1,16 @@
+---
+# Subscription only. The DSC lives in the sibling openshift-ai chart so the
+# component list can change without touching the operator.
+operator:
+  namespace: redhat-ods-operator
+  name: rhods-operator
+  # stable-3.5 resolves to rhods-operator.3.5.1 in the cluster catalog. 3.5 is
+  # the first release with the mlflowoperator component this project needs.
+  channel: stable-3.5
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+  # Pin a CSV for a reproducible event, empty tracks the channel.
+  startingCSV: ""
+  operatorGroup:
+    enabled: true

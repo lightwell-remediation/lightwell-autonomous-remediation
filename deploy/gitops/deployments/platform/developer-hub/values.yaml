@@ -1,0 +1,24 @@
+---
+# Scaffold only, and disabled in bootstrap-infra.
+#
+# This installs the operator and nothing else. There is no Backstage CR here on
+# purpose: a Developer Hub instance needs decisions this project has not taken
+# (which identity provider, which GitHub integration, which catalog entries),
+# and guessing them now would mean shipping a chart nobody has run.
+#
+# Turn platform.developerHub.enabled on to get the operator, then write the
+# Backstage CR when Phase 7 actually starts. See README.md next to this file.
+operator:
+  namespace: lightwell-developer-hub
+  name: rhdh
+  # fast resolves to rhdh-operator.v1.10.5 in the catalog.
+  channel: fast
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+  startingCSV: ""
+  operatorGroup:
+    enabled: true
+
+# Ingress domain, used by routes once there is an instance.
+clusterDomain: ""

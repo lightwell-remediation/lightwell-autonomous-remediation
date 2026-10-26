@@ -1,0 +1,36 @@
+---
+# Set by the agents-smoke Application in bootstrap-infra.
+#
+# A hello-world PipelineRun only proves Tekton is alive. What breaks later is
+# the image, the scheduling, the storage, the arbitrary UID and the credentials,
+# so the smoke pipeline exercises those instead, with as many parallel agent
+# shaped tasks as the cluster is supposed to support.
+#
+# The PipelineRun itself is created by make validate, not by ArgoCD: a one-shot
+# immutable object under GitOps is permanent drift (ADR-0006).
+namespace: lightwell-agents
+
+# Full registry reference, set from the parent chart so the tag follows the
+# pinned harness version.
+image: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:2.1.295
+
+concurrency: 2
+
+# Reach the MaaS gateway with the in-cluster Secret and check the pinned model
+# is served. Status code and model ids only, the key is never printed.
+checkMaas: true
+
+serviceAccount: lightwell-agent
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+secrets:
+  maas: lightwell-maas
+  github: lightwell-github
+  lightwell: lightwell-lightwell

@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: dashboard-config
+description: RHOAI dashboard feature flags (OdhDashboardConfig), with everything the cluster can actually serve turned on
+type: application
+version: 0.1.0
+appVersion: "3.5"

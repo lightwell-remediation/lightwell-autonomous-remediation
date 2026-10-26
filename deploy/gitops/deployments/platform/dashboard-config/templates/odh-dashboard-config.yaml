@@ -1,0 +1,21 @@
+---
+apiVersion: opendatahub.io/v1alpha
+kind: OdhDashboardConfig
+metadata:
+  name: odh-dashboard-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: rhods-dashboard
+    app.opendatahub.io/rhods-dashboard: "true"
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  dashboardConfig:
+    {{- toYaml .Values.features | nindent 4 }}
+    {{- toYaml .Values.disable | nindent 4 }}
+  {{- with .Values.globalMLflowNamespaces }}
+  globalMLflowNamespaces:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  notebookController:
+    {{- toYaml .Values.notebookController | nindent 4 }}

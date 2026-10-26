@@ -1,0 +1,153 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-sbom
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    Rebuild the application's bill of materials from the remediated tree, so
+    the inventory stops naming the version that was just fixed.
+
+    The alert came from an inventory. A remediation that moves the dependency
+    and leaves the inventory alone has not closed the loop: whatever
+    re-scans the branch sees the vulnerability still listed, the alert fires
+    again, and the pull request carries evidence against its own claim
+    (specs/devsecops/pipeline.spec.md — The Inventory Is Regenerated From the
+    Remediated Build).
+
+    A task rather than a session: producing an SBOM is a command and there is
+    nothing in it to reason about (ADR-0005).
+
+    On the agent image rather than something smaller, because Syft scans the
+    jar and that jar has to come from the same toolchain that verified the
+    tree — the same reason the baseline runs there.
+
+    Then, where a Trusted Profile Analyzer is configured, the inventory goes
+    to it and what it reports is left for delivery (Validated Before Merge).
+    A second step rather than a second Task: it reads the file the first one
+    just wrote, in the same pod, with nothing to schedule or mount again.
+  params:
+    - name: image
+      type: string
+      default: {{ .Values.image.agent | quote }}
+    - name: replay
+      type: string
+      description: >-
+        "true" skips the build. A replay exercises the sequencing, and there
+        is no remediated tree to inventory.
+      default: "false"
+    - name: application
+      type: string
+      description: >-
+        owner/repo. The label the application's baseline inventory was
+        registered under in TPA (scripts/tpa-onboard.sh).
+    - name: app-branch
+      type: string
+      description: The branch remediated; prefers a baseline of that ref.
+      default: ""
+    {{- include "remediation.cacheParam" . | nindent 4 }}
+  workspaces:
+    - name: source
+  volumes:
+    {{- include "remediation.cacheVolume" . | nindent 4 }}
+  steps:
+    - name: regenerate
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.agentEnv" . | nindent 6 }}
+      {{- include "remediation.cacheMount" . | nindent 6 }}
+      {{- include "remediation.agentResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+
+        if [ "$(params.replay)" = "true" ]; then
+          echo "sbom: replay — no remediated tree to inventory"
+          exit 0
+        fi
+
+        OUT="$(workspaces.source.path)/out"
+        mkdir -p "$OUT"
+
+        # Not fatal where the application publishes no inventory: the
+        # requirement is conditional on there being one, and inventing a
+        # file the project does not track would put an unexplained artefact
+        # in the pull request.
+        if [ ! -r "$(workspaces.source.path)/repo/sbom.json" ]; then
+          echo "sbom: this application tracks no sbom.json — nothing to regenerate"
+          exit 0
+        fi
+
+        before="$(node -e '
+          try {
+            const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            process.stdout.write(String((d.components || []).length));
+          } catch { process.stdout.write("?"); }
+        ' "$(workspaces.source.path)/repo/sbom.json")"
+
+        "${GENERATE_SBOM:-/usr/local/bin/generate-sbom.sh}"
+        status=$?
+
+        if [ "$status" -ne 0 ]; then
+          echo "sbom: the inventory could not be rebuilt" >&2
+          echo "sbom: delivering without it would open a pull request whose" >&2
+          echo "sbom: inventory still names the vulnerable version" >&2
+          exit "$status"
+        fi
+
+        after="$(node -e '
+          const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+          process.stdout.write(String((d.components || []).length));
+        ' "$(workspaces.source.path)/repo/sbom.json")"
+        echo "sbom: $before component(s) before, $after after"
+
+        # Left for delivery to mention in the pull request body, and for
+        # anyone reading the run afterwards.
+        node -e '
+          const fs = require("fs");
+          fs.writeFileSync(process.argv[1], JSON.stringify({
+            regenerated: true,
+            components_before: process.argv[2],
+            components_after: process.argv[3],
+          }, null, 2) + "\n");
+        ' "$OUT/sbom.json" "$before" "$after"
+
+    # Only the TPA Secret and the workspace: no MaaS, GitHub or Lightwell
+    # credentials, because this step needs none of them. The Secret is
+    # optional so a replicator without an instance schedules the same pod and
+    # the script records that there was nothing to validate against.
+    - name: validate
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      envFrom:
+        - secretRef:
+            name: {{ .Values.secrets.tpa }}
+            optional: true
+      env:
+        - name: WORKSPACE
+          value: $(workspaces.source.path)
+        - name: APPLICATION
+          value: $(params.application)
+        - name: APP_BRANCH
+          value: $(params.app-branch)
+        - name: RUN_NAME
+          value: $(context.pipelineRun.name)
+      {{- include "remediation.cliResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+
+        if [ "$(params.replay)" = "true" ]; then
+          echo "validate: replay — no remediated inventory to validate"
+          exit 0
+        fi
+
+        # regenerate leaves out/sbom.json only when it rebuilt an inventory.
+        if [ ! -r "$(workspaces.source.path)/out/sbom.json" ]; then
+          echo "validate: no inventory was regenerated — nothing to validate"
+          exit 0
+        fi
+
+        exec "${VALIDATE_SBOM:-/usr/local/bin/validate-sbom.sh}"

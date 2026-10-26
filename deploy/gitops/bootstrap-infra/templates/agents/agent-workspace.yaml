@@ -1,0 +1,40 @@
+{{- if and .Values.agents.enabled .Values.agents.workspace.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agents-workspace
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave 0: the builds at wave 1 and the Secrets both land in this namespace.
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: {{ .Values.agents.namespace }}
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "agents/agent-workspace") }}
+    helm:
+      valuesObject:
+        namespace: {{ .Values.agents.namespace }}
+        concurrency: {{ .Values.agents.concurrency }}
+        resources:
+          {{- toYaml .Values.agents.resources | nindent 10 }}
+        secrets:
+          {{- toYaml .Values.secrets | nindent 10 }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

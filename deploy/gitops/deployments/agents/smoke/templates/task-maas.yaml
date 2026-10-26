@@ -1,0 +1,57 @@
+{{- if .Values.checkMaas }}
+---
+# Proves the credential Secret is wired and the gateway answers with the pinned
+# model. Without this, a missing or stale key surfaces inside a remediation run,
+# twenty minutes later, as a retry storm.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: maas-reachable
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell
+spec:
+  description: >-
+    Checks the MaaS gateway is reachable with the in-cluster credential and
+    serves the pinned model. Prints the status code and the model ids, never
+    the key.
+  steps:
+    - name: models
+      image: {{ .Values.image | quote }}
+      envFrom:
+        - secretRef:
+            name: {{ .Values.secrets.maas | quote }}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        : "${MAAS_BASE_URL:?not in secret {{ .Values.secrets.maas }}}"
+        : "${MAAS_API_KEY:?not in secret {{ .Values.secrets.maas }}}"
+        : "${MAAS_MODEL:?not in secret {{ .Values.secrets.maas }}}"
+
+        # No trailing /v1: the harness appends the API path itself, and the
+        # Secret has to hold the value the harness expects.
+        base="${MAAS_BASE_URL%/}"
+        case "$base" in
+          */v1) echo "MAAS_BASE_URL must not end in /v1, the harness appends it"; exit 1 ;;
+        esac
+
+        code=$(curl -s -m 30 -o /tmp/models.json -w '%{http_code}' \
+                 -H "Authorization: Bearer ${MAAS_API_KEY}" "${base}/v1/models")
+        echo "GET ${base}/v1/models -> ${code}"
+        [[ "$code" == "200" ]] || { echo "gateway did not answer 200"; exit 1; }
+
+        echo "models served:"
+        grep -o '"id":"[^"]*"' /tmp/models.json | cut -d'"' -f4 | sed 's/^/  /'
+
+        grep -q "\"id\":\"${MAAS_MODEL}\"" /tmp/models.json || {
+          echo "pinned model ${MAAS_MODEL} is not in the catalog"; exit 1; }
+        echo "pinned model ${MAAS_MODEL}: ok"
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+{{- end }}

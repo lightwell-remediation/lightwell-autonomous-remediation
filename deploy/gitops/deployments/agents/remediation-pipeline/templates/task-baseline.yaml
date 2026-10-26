@@ -1,0 +1,76 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-baseline
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    Run the application's existing suite against the unmodified checkout and
+    keep the result aside. After the analysis, so a run with nothing to
+    remediate never pays for the suite; before anything is modified, so there
+    is still an unmodified tree to measure
+    (orchestration-strategy.spec.md — The Baseline Is Captured Once).
+  params:
+    - name: image
+      type: string
+      default: {{ .Values.image.agent | quote }}
+    - name: replay
+      type: string
+      default: "false"
+    {{- include "remediation.cacheParam" . | nindent 4 }}
+  workspaces:
+    - name: source
+    - name: fixtures
+      optional: true
+      mountPath: /fixtures
+  volumes:
+    {{- include "remediation.cacheVolume" . | nindent 4 }}
+  results:
+    - name: state
+      description: '"green" where every test passed, otherwise "red".'
+  steps:
+    - name: capture
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- include "remediation.agentEnv" . | nindent 6 }}
+      {{- include "remediation.cacheMount" . | nindent 6 }}
+      {{- include "remediation.agentResources" . | nindent 6 }}
+      script: |
+        #!/usr/bin/env bash
+        {{- include "remediation.prologue" . | nindent 8 }}
+
+        status=0
+        if [ "$(params.replay)" = "true" ]; then
+          # A scenario supplies the recorded test list and, where it is
+          # modelling a red suite, the exit status that went with it. There is
+          # no gate here: run-suite.sh's exit status *is* the signal.
+          if [ -r /fixtures/baseline-tests.txt ]; then
+            cp /fixtures/baseline-tests.txt "$OUT/baseline-tests.txt"
+          else
+            : > "$OUT/baseline-tests.txt"
+          fi
+          [ -r /fixtures/baseline.status ] && status="$(cat /fixtures/baseline.status)"
+          echo "baseline: replayed, exit $status"
+        else
+          run-suite.sh baseline-tests.txt || status=$?
+        fi
+
+        case "$status" in
+          0) echo "baseline: green — $(wc -l <"$OUT/baseline-tests.txt") test(s)"
+             emit green > "$(results.state.path)" ;;
+          1) echo "baseline: the suite does not pass on the unmodified checkout" >&2
+             echo "baseline: fix the tests before remediating; nothing was changed" >&2
+             emit red > "$(results.state.path)" ;;
+          *) echo "baseline: the suite could not be run at all" >&2
+             emit red > "$(results.state.path)" ;;
+        esac
+
+        # Kept aside so a retry is measured against the starting state and
+        # never against the attempt that failed. patch-and-verify restores
+        # from this copy at the start of every attempt
+        # (fix-verification.spec.md, guarantee 4).
+        [ "$status" = "0" ] && cp "$OUT/baseline-tests.txt" "$OUT/baseline-tests.original.txt"
+
+        exit "$status"

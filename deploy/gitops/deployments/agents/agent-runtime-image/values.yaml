@@ -1,0 +1,42 @@
+---
+# Set by the agents-runtime-image Application in bootstrap-infra.
+#
+# Two chained builds, because the upstream Claude Code image cannot be
+# redistributed and so has to be built per environment (ADR-0003, ADR-0008).
+# The tag is the harness version, not latest, so a pod references a build.
+namespace: lightwell-agents
+
+# Pinned together with agent-runtime/build-image.sh. Bump in both places and
+# re-run the ADR-0003 validation when you do.
+claudeCodeVersion: "2.1.295"
+ghVersion: "2.63.2"
+
+upstream:
+  repo: https://github.com/red-hat-data-services/agentic-starter-kits.git
+  ref: "61d2ea8"
+  contextDir: agents/claude-code/deployment
+
+app:
+  repo: https://github.com/lightwell-remediation/lightwell-autonomous-remediation
+  ref: main
+  dockerfilePath: agent-runtime/Containerfile
+  # Basic-auth Secret for cloning while the repository is private. Created by
+  # make secrets, remove when the repo goes public in Phase 4.
+  sourceSecret: lightwell-git-source
+
+images:
+  base: upstream-claude-code
+  runtime: lightwell-agent-runtime
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+
+# Builds pull from GitHub, npm and the Red Hat registries, and the upstream one
+# compiles nothing but downloads a lot. One hour is generous, and a build that
+# hangs should fail rather than sit there.
+completionDeadlineSeconds: 3600

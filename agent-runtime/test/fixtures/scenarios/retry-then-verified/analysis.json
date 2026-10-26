@@ -1,0 +1,31 @@
+{
+  "terminal_state": "remediable",
+  "reason": "org.apache.cxf:cxf-rt-rs-security-oauth2 version 4.2.2 is present as a direct dependency and the vulnerable class DefaultEncryptingCodeDataProvider is directly subclassed and its removeCodeGrant method invoked in AuditedCodeDataProvider.java; the fix is available at version 4.2.2.vendor-00001.",
+
+  "vulnerability": {
+    "id": "x_VENDOR-CVE-2026-68079-4.2.2",
+    "summary": "Apache CXF: DefaultEncryptingCodeDataProvider allows unlimited authorization code replay",
+    "severity": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+  },
+
+  "component": {
+    "group": "org.apache.cxf",
+    "artifact": "cxf-rt-rs-security-oauth2",
+    "current_version": "4.2.2",
+    "presence": "direct",
+    "dependency_path": ["com.lightwell:lw-apache-cxf-sample:1.0.0-SNAPSHOT"],
+    "declared_in": "pom.xml",
+    "version_controlled_by": "property <cxf.version>4.2.2</cxf.version> (pom.xml line 22)"
+  },
+
+  "reachability": {
+    "verdict": "reachable",
+    "symbols_searched": [
+      "DefaultEncryptingCodeDataProvider",
+      "removeCodeGrant"
+    ],
+    "evidence": "src/main/java/com/lightwell/cxf/hello/AuditedCodeDataProvider.java:17 — AuditedCodeDataProvider extends DefaultEncryptingCodeDataProvider; line 33 — super.removeCodeGrant(code) is called. The bean is registered at src/main/java/com/lightwell/cxf/hello/AuthorizationServerConfig.java:39."
+  },
+
+  "remediating_version": "4.2.2.vendor-00001"
+}
