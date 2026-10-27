@@ -119,9 +119,15 @@ fi
 oc get crd tektonconfigs.operator.tekton.dev >/dev/null 2>&1 \
   && log_skip "OpenShift Pipelines is already installed, the Subscription will adopt it" \
   || log_ok "no Tekton, this bootstrap installs it"
-oc get crd argocds.argoproj.io >/dev/null 2>&1 \
-  && log_skip "OpenShift GitOps is already installed, make gitops only patches it" \
-  || log_ok "no GitOps operator, run make gitops first"
+GITOPS_SUB="$(oc get subscriptions.operators.coreos.com -A \
+  -o jsonpath='{range .items[?(@.spec.name=="openshift-gitops-operator")]}{.metadata.namespace}{"/"}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -1)"
+if [[ -n "$GITOPS_SUB" ]]; then
+  log_skip "OpenShift GitOps is already installed ($GITOPS_SUB); make gitops leaves the operator alone and only adds to the ArgoCD instance"
+elif oc get crd argocds.argoproj.io >/dev/null 2>&1; then
+  log_skip "an ArgoCD CRD exists but no openshift-gitops-operator Subscription; make gitops would install a second operator, check first"
+else
+  log_ok "no GitOps operator, make gitops installs it"
+fi
 
 log_step "Capacity"
 # Rough: the platform plus two parallel sessions plus a build needs around

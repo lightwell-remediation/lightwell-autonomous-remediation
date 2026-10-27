@@ -53,7 +53,14 @@ cache:
   # be concurrent and would otherwise serialise on the volume
   # (orchestration-strategy.spec.md — Two Lifetimes, Two Volumes).
   claimName: lightwell-maven-cache
+  # Needs ReadWriteMany, which the RBD default class on RHDP cannot do. This
+  # is the CephFS class every RHDP OpenShift cluster backed by external ODF
+  # has, including Field Sourced Content on CNV. Elsewhere set your RWX class
+  # (internal ODF: ocs-storagecluster-cephfs), or "" for the default class.
   storageClass: ocs-external-storagecluster-cephfs
+  # ReadWriteOnce works where no class offers RWX, at the cost of runs
+  # against different applications queuing on the volume.
+  accessMode: ReadWriteMany
   size: 20Gi
 
 agent:

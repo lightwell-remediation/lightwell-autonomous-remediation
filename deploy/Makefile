@@ -79,7 +79,8 @@ deploy-all: preflight gitops secrets deploy
 	@echo "==> waiting for the platform to settle (up to 15 minutes)"
 	@scripts/wait-platform.sh --namespace $(AGENT_NS)
 	@echo ""
-	@echo "Next: make build-image && make validate"
+	@echo "Next: make validate, once the DataScienceCluster is Ready and the"
+	@echo "runtime image has built (both start on their own, ~10 minutes)"
 
 build-image:
 	@scripts/build-image.sh --namespace $(AGENT_NS) $(if $(FORCE),--force,)
@@ -88,11 +89,11 @@ logs-build:
 	@oc logs -f bc/lightwell-agent-runtime -n $(AGENT_NS)
 
 validate:
-	@scripts/validate.sh --namespace $(AGENT_NS)
+	@RELEASE=$(RELEASE) scripts/validate.sh --namespace $(AGENT_NS)
 
 smoke:
-	@scripts/validate.sh --namespace $(AGENT_NS) --no-pipeline >/dev/null || true
-	@scripts/validate.sh --namespace $(AGENT_NS)
+	@RELEASE=$(RELEASE) scripts/validate.sh --namespace $(AGENT_NS) --no-pipeline >/dev/null || true
+	@RELEASE=$(RELEASE) scripts/validate.sh --namespace $(AGENT_NS)
 
 status:
 	@oc get applications.argoproj.io -n $(ARGO_NS) 2>/dev/null || echo "no applications"

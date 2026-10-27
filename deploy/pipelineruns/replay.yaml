@@ -48,7 +48,6 @@ spec:
       volumeClaimTemplate:
         spec:
           accessModes: [ReadWriteOnce]
-          storageClassName: ocs-external-storagecluster-ceph-rbd
           resources:
             requests:
               storage: 1Gi
