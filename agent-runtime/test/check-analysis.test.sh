@@ -17,9 +17,9 @@ trap 'rm -r "$TMP"' EXIT
 pass=0
 fail=0
 
-# expect <expected-exit> <name> <document-or-MISSING>
+# expect <expected-exit> <name> <document-or-MISSING> [expected-vulnerability]
 expect() {
-  local expected="$1" name="$2" document="$3"
+  local expected="$1" name="$2" document="$3" vulnerability="${4:-}"
   local file="$TMP/${name//[^a-zA-Z0-9]/_}.json"
 
   if [[ "$document" == "MISSING" ]]; then
@@ -28,7 +28,7 @@ expect() {
     printf '%s' "$document" >"$file"
   fi
 
-  node "$GATE" "$file" >/dev/null 2>&1
+  EXPECTED_VULNERABILITY="$vulnerability" node "$GATE" "$file" >/dev/null 2>&1
   local actual=$?
 
   if [[ "$actual" == "$expected" ]]; then
@@ -68,6 +68,20 @@ expect 1 "document absent" MISSING
 # language model produces most readily: something to fix, nothing to fix it to.
 expect 1 "remediable without a remediating version" \
   '{"terminal_state":"remediable","remediating_version":null}'
+
+# A Lightwell advisory bundles several CVEs fixed by one release. The run names
+# the one it is for, and an analysis of a sibling must not pass.
+expect 0 "the vulnerability the run named" \
+  '{"terminal_state":"remediable","remediating_version":"1.2.3-rebuild","vulnerability":{"id":"CVE-2026-68079"}}' \
+  CVE-2026-68079
+
+expect 1 "a sibling of the vulnerability the run named" \
+  '{"terminal_state":"remediable","remediating_version":"1.2.3-rebuild","vulnerability":{"id":"CVE-2026-57818"}}' \
+  CVE-2026-68079
+
+expect 1 "no vulnerability, when the run named one" \
+  '{"terminal_state":"remediable","remediating_version":"1.2.3-rebuild"}' \
+  CVE-2026-68079
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 (( fail == 0 ))

@@ -4,21 +4,34 @@
 # The counterpart to test-pipeline.sh: same Pipeline, real sessions. This one
 # spends money and opens a pull request.
 #
-# The vulnerability record is mounted as a ConfigMap rather than fetched, so
-# the run does not depend on Lightwell being reachable from the cluster and
-# the same record can be replayed later. `--osv` also takes a URL, which the
-# runtime fetches with the Lightwell credentials; this script does not, on
-# purpose.
+# The vulnerability record is given one of three ways:
+#
+#   a file          mounted as a ConfigMap: no network, and the same record
+#                   replays later. A public record committed here goes this way.
+#   a URL           fetched in the cluster by the first phase, with the
+#                   Lightwell credentials where they are set. The agent never
+#                   sees them.
+#   a Lightwell id  x_RHLW-CVE-2026-68079-4.2.2 — turned into a URL under
+#                   LW_OSV_BASE_URL from the lightwell-lightwell Secret, and
+#                   fetched as above. The CVE in it becomes --vulnerability.
+#   an OSV id       GHSA-hfrx-6qgj-fp6c, or a file named after one that is not
+#                   on disk — fetched from the public OSV registry
+#                   (OSV_API_URL, osv.dev by default), no credentials.
 #
 # Usage:
-#   run-remediation.sh <osv-file> [--branch <name>] [--model <id>] [--no-follow]
+#   run-remediation.sh <osv-file|url|lightwell-id|osv-id> [--vulnerability <id>]
+#                      [--branch <name>] [--model <id>] [--no-follow]
+#
+# --vulnerability names the vulnerability the run is for when the record
+# bundles several fixed by one release, as Lightwell advisories do.
 #
 # --branch picks which branch of the application to remediate, and so which
 # branch the pull request is opened against. The demo fixture, where the
 # vulnerable code is actually reachable, lives on a branch of its own.
 #
-# Example:
-#   run-remediation.sh .fixtures/osv/CVE-2026-68079.json --branch feat/reachable-cve
+# Examples:
+#   run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2 --branch feat/reachable-cve
+#   run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json
 #
 # Exit status:
 #   0  remediated, verified and delivered (or nothing needed doing)
@@ -33,27 +46,29 @@ readonly CACHE_CLAIM="${CACHE_CLAIM:-lightwell-maven-cache}"
 readonly SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-lightwell-agent}"
 readonly CLAIM_ACCOUNT="${CLAIM_ACCOUNT:-lightwell-run-claim}"
 readonly STATUS_DIR="$SCRIPT_DIR/../.agent-status"
+readonly OSV_API_URL="${OSV_API_URL:-https://api.osv.dev/v1/vulns}"
 
 die() { printf 'run-remediation: %s\n' "$*" >&2; exit 2; }
 log() { printf 'run-remediation: %s\n' "$*" >&2; }
 
 OSV=""
 MODEL=""
+VULNERABILITY=""
 BRANCH="${APP_BRANCH:-}"
 FOLLOW=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --model)     MODEL="${2:?--model needs a value}"; shift 2 ;;
     --branch)    BRANCH="${2:?--branch needs a value}"; shift 2 ;;
+    --vulnerability) VULNERABILITY="${2:?--vulnerability needs a value}"; shift 2 ;;
     --no-follow) FOLLOW=0; shift ;;
-    -h|--help)   sed -n '2,23p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,41p' "$0"; exit 0 ;;
     -*)          die "unknown argument: $1" ;;
     *)           OSV="$1"; shift ;;
   esac
 done
 
 [ -n "$OSV" ] || die "a vulnerability record is required"
-[ -r "$OSV" ] || die "vulnerability record not readable: $OSV"
 command -v oc >/dev/null || die "oc is not installed"
 oc whoami >/dev/null 2>&1 || die "not logged in to a cluster"
 
@@ -72,14 +87,56 @@ done
 oc get secret lightwell-lightwell -n "$NAMESPACE" >/dev/null 2>&1 \
   || echo "run-remediation: no lightwell-lightwell Secret — fine for an application on Maven Central only" >&2
 
-record="$(basename "$OSV")"
+# Which form. A file wins over anything that merely looks like an id, so a
+# record saved under its own name still mounts; one that is not on disk is
+# fetched from the registry it was published in.
+osv_id="$(basename "$OSV" .json)"
+case "$OSV" in
+  http://*|https://*) source_kind="url" ;;
+  *) if [ -e "$OSV" ]; then source_kind="file"
+     elif [[ "$OSV" =~ ^x_RHLW-[A-Za-z0-9.-]+$ ]]; then source_kind="lightwell"
+     elif [[ "$osv_id" =~ ^[A-Z][A-Za-z0-9]*-[A-Za-z0-9.-]+$ ]]; then
+       log "$OSV is not on disk — fetching $osv_id from $OSV_API_URL"
+       OSV="${OSV_API_URL%/}/$osv_id"
+       source_kind="url"
+     else die "vulnerability record not found: $OSV (a file, a URL, a Lightwell id such as x_RHLW-CVE-2026-68079-4.2.2, or an OSV id such as GHSA-hfrx-6qgj-fp6c)"
+     fi ;;
+esac
+[ "$source_kind" != file ] || [ -r "$OSV" ] || die "vulnerability record not readable: $OSV"
+
+if [ "$source_kind" = lightwell ]; then
+  base="$(oc get secret lightwell-lightwell -n "$NAMESPACE" \
+    -o go-template='{{with index .data "LW_OSV_BASE_URL"}}{{. | base64decode}}{{end}}' 2>/dev/null)"
+  [ -n "$base" ] || die "LW_OSV_BASE_URL is not set in the lightwell-lightwell Secret — scripts/push-secrets.sh lightwell"
+  # The id carries the CVE: x_RHLW-CVE-2026-68079-4.2.2. The record served
+  # under it may bundle that CVE's siblings, so the run says which one it is.
+  if [ -z "$VULNERABILITY" ] && [[ "$OSV" =~ (CVE-[0-9]{4}-[0-9]+) ]]; then
+    VULNERABILITY="${BASH_REMATCH[1]}"
+  fi
+  OSV="${base%/}/$OSV.json"
+  source_kind="url"
+fi
+
+if [ "$source_kind" = url ]; then
+  record="$(basename "${OSV%%\?*}")"
+  osv_param="$OSV"
+else
+  record="$(basename "$OSV")"
+  osv_param="/osv/$record"
+fi
 # A label value cannot contain '/' or uppercase, and the claim lists on it.
 label="$(printf '%s' "$application" | tr 'A-Z/' 'a-z-' | cut -c1-63)"
 cm="osv-$(printf '%s' "${record%.json}" | tr 'A-Z_.' 'a-z--' | cut -c1-55)"
 
-oc delete configmap "$cm" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1
-oc create configmap "$cm" -n "$NAMESPACE" --from-file="$OSV" >/dev/null \
-  || die "could not create the record ConfigMap"
+osv_workspace=""
+if [ "$source_kind" = file ]; then
+  oc delete configmap "$cm" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1
+  oc create configmap "$cm" -n "$NAMESPACE" --from-file="$OSV" >/dev/null \
+    || die "could not create the record ConfigMap"
+  osv_workspace="    - name: osv
+      configMap:
+        name: $cm"
+fi
 
 mkdir -p "$STATUS_DIR"
 
@@ -108,7 +165,9 @@ spec:
     - name: application
       value: $label
     - name: osv
-      value: /osv/$record
+      value: "$osv_param"
+    - name: vulnerability
+      value: "$VULNERABILITY"
     - name: app-branch
       value: "$BRANCH"
     - name: model
@@ -125,16 +184,15 @@ spec:
           resources:
             requests:
               storage: 5Gi
-    - name: osv
-      configMap:
-        name: $cm
+$osv_workspace
 YAML
 )"
 [ -n "$run" ] || die "could not create the PipelineRun"
 
 log "started $run"
 log "  application $application"
-log "  record      $record"
+log "  record      $record ($source_kind)"
+[ -z "$VULNERABILITY" ] || log "  vulnerability $VULNERABILITY"
 log "  branch      ${BRANCH:-the repository default}"
 log "  model       ${MODEL:-from the MaaS Secret}"
 
@@ -162,6 +220,11 @@ printf '\n' >&2
 oc get taskruns -n "$NAMESPACE" -l "tekton.dev/pipelineRun=$run" \
   -o custom-columns='TASK:.metadata.labels.tekton\.dev/pipelineTask,STATUS:.status.conditions[0].reason' >&2 2>/dev/null
 printf '\n%s: %s\n' "$reason" "$message" >&2
+# The pull request is the run's product, and the workspace that held
+# delivery.json is deleted with the run, so it is read off the deliver log.
+pr="$(oc logs -n "$NAMESPACE" -l "tekton.dev/pipelineRun=$run,tekton.dev/pipelineTask=deliver" \
+  --all-containers 2>/dev/null | grep -oE 'https://github\.com/[^ "]+/pull/[0-9]+' | tail -1)"
+[ -z "$pr" ] || printf 'pull request:  %s\n' "$pr" >&2
 printf 'logs:  oc logs -n %s -l tekton.dev/pipelineRun=%s --all-containers\n' "$NAMESPACE" "$run" >&2
 
 [ "$reason" = "Succeeded" ] || [ "$reason" = "Completed" ]

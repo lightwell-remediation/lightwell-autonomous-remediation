@@ -12,9 +12,14 @@
 #   run-agent.sh --task @path/to/prompt   [--workspace <dir>] [--no-clone]
 #   run-agent.sh --role analyze --osv <path|url>   [--model <id>]
 #                                         [--branch <name>]
+#                                         [--vulnerability <id>]
 #
 # --branch picks which branch of the application to remediate, and so which
 # branch the pull request is opened against. Default: the repository's own.
+#
+# --vulnerability names the one vulnerability the run is for, when the record
+# bundles several fixed by the same release — Lightwell advisories do. The
+# analysis is held to it.
 #
 # Without --task the role supplies its prompt from prompts/<role>.md.
 #
@@ -86,6 +91,7 @@ TASK=""
 CLI_OSV=""
 CLI_ANALYSIS=""
 CLI_MODEL=""
+CLI_VULNERABILITY=""
 # Which branch of the application to remediate. Empty means the repository's
 # default, which is the right answer for a real alert. It is a parameter
 # because the branch a remediation is based on is a property of the request,
@@ -103,9 +109,10 @@ while [[ $# -gt 0 ]]; do
     --analysis)  CLI_ANALYSIS="${2:?--analysis needs a value}"; shift 2 ;;
     --repo)      CLI_APP_REPO="${2:?--repo needs a value}";  shift 2 ;;
     --branch)    CLI_APP_BRANCH="${2:?--branch needs a value}"; shift 2 ;;
+    --vulnerability) CLI_VULNERABILITY="${2:?--vulnerability needs a value}"; shift 2 ;;
     --workspace) CLI_WORKSPACE="${2:?--workspace needs a value}"; shift 2 ;;
     --no-clone)  CLONE=0; shift ;;
-    -h|--help)   sed -n '2,22p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help)   sed -n '2,27p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *)           die "unknown argument: $1" ;;
   esac
 done
@@ -280,16 +287,25 @@ needs_osv=0
 if [[ -n "$CLI_OSV" ]]; then
   if [[ "$CLI_OSV" == http://* || "$CLI_OSV" == https://* ]]; then
     # Lightwell records need the Lightwell credentials; a public source such
-    # as osv.dev needs none, so they are sent only when they are set.
+    # as osv.dev needs none, and must not receive them. They are sent only to
+    # the Lightwell host — the one LW_OSV_BASE_URL, or failing that
+    # LW_MAVEN_REPO_URL, names — never to whatever URL the run was handed.
+    host_of() { local u="${1#*://}"; u="${u%%/*}"; printf '%s' "${u##*@}"; }
+    lw_host="$(host_of "${LW_OSV_BASE_URL:-${LW_MAVEN_REPO_URL:-}}")"
     osv_auth=()
-    [[ -n "${LW_USERNAME:-}" && -n "${LW_PASSWORD:-}" ]] && osv_auth=(-u "$LW_USERNAME:$LW_PASSWORD")
+    if [[ -n "${LW_USERNAME:-}" && -n "${LW_PASSWORD:-}" && -n "$lw_host" \
+          && "$(host_of "$CLI_OSV")" == "$lw_host" ]]; then
+      osv_auth=(-u "$LW_USERNAME:$LW_PASSWORD")
+    fi
     log "fetching vulnerability record from ${CLI_OSV%%\?*}"
     curl -fsS --max-time 30 "${osv_auth[@]}" \
          -o "$OSV_FILE" "$CLI_OSV" \
       || die "cannot retrieve the vulnerability record from $CLI_OSV"
   else
     [[ -r "$CLI_OSV" ]] || die "vulnerability record not readable: $CLI_OSV"
-    cp -- "$CLI_OSV" "$OSV_FILE"
+    # A later phase of the same run may be handed the copy an earlier one
+    # fetched, which is this file already.
+    [[ "$CLI_OSV" -ef "$OSV_FILE" ]] || cp -- "$CLI_OSV" "$OSV_FILE"
   fi
 
   # Parsed here rather than in the session. A malformed record costs one turn
@@ -591,6 +607,9 @@ fi
 # runs unchanged on a workstation and in a container, where the workspace lives
 # somewhere else.
 TASK="${TASK//\{\{OSV_PATH\}\}/$OSV_FILE}"
+# Not a path, but substituted the same way: a record that bundles several
+# vulnerabilities needs the run to say which one it is for.
+TASK="${TASK//\{\{VULNERABILITY\}\}/${CLI_VULNERABILITY:-the one the record describes}}"
 TASK="${TASK//\{\{ANALYSIS_PATH\}\}/$ANALYSIS_FILE}"
 TASK="${TASK//\{\{TREE_PATH\}\}/$TREE_FILE}"
 TASK="${TASK//\{\{SBOM_PATH\}\}/$SBOM_FILE}"
@@ -842,7 +861,9 @@ if [[ " ${DELIVER_ROLES[*]} " == *" $ROLE "* ]]; then
 fi
 
 if [[ -n "$output_gate" ]]; then
-  if ! node "$output_gate" "$output_doc"; then
+  # Only the analysis gate reads it: the phases after it take the vulnerability
+  # from the analysis, not from the run.
+  if ! EXPECTED_VULNERABILITY="$CLI_VULNERABILITY" node "$output_gate" "$output_doc"; then
     log "artifacts: $RESULT_FILE $LOG_FILE"
     exit 1
   fi

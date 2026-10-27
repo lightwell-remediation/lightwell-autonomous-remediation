@@ -30,7 +30,11 @@ Two things will cost you the entire run if you do them:
 To find a symbol in the source, search for it with Grep. Do not open files one
 by one hoping to find it.
 
-One record, one vulnerability, one run.
+One run, one vulnerability: {{VULNERABILITY}}. A record can bundle several
+vulnerabilities fixed by the same release — Lightwell advisories do. Analyse only
+this one: take the symbols from the part of the record that describes it, and
+leave the others alone. The remediating version still comes from the record's
+affected range, which the bundled vulnerabilities share.
 
 All of these have been prepared for you. You have no network access, no
 credentials, and no build tools. Do not attempt to fetch anything, resolve
@@ -130,7 +134,7 @@ Write this document to `{{ANALYSIS_PATH}}`, and nothing else to it:
   "reason": "why this state, in one or two sentences",
 
   "vulnerability": {
-    "id": "identifier from the record",
+    "id": "identifier of the vulnerability this run is for — the CVE where the record bundles several",
     "summary": "summary from the record",
     "severity": "severity as published, or null"
   },

@@ -203,6 +203,25 @@ worth keeping. So this task runs under its own service account with a Role of ex
 List-then-start is not atomic. The window is milliseconds against runs of minutes.
 Stating that is better than implying a guarantee this does not give.
 
+### The record is mounted, or fetched once by the runtime (2026-10-27)
+
+The record reaches the run as a ConfigMap, or as a URL the first phase fetches
+into the run's workspace before its session starts; every later phase reads
+that copy (`remediation.record` in the chart helpers). On path A the URL is
+Lightwell's, built from `LW_OSV_BASE_URL` and the record's id, and the
+credentials are read from `lightwell-lightwell` by `run-agent.sh` — never by
+the session, which still has no network.
+
+A per-run fetch rather than a fetch per phase: four requests would let the
+phases of one run read different documents if the source changed mid-run.
+Mounting stays the default for anything already on disk, because it needs no
+network and replays the same.
+
+Lightwell now serves one advisory per rebuild, bundling every CVE the rebuild
+fixes. The run therefore carries a `vulnerability` parameter, taken from the
+id, and the analysis gate refuses an analysis of a sibling CVE
+(`check-analysis.js`, `EXPECTED_VULNERABILITY`).
+
 ## Consequences
 
 **The sequencing now exists twice.** `scripts/remediate.sh` stays as the local path —

@@ -99,8 +99,9 @@ spec:
           cp "$fixture" "$OUT/patch.json"
           node "${CHECK_PATCH:-/opt/agent-runtime/lib/check-patch.js}" "$OUT/patch.json" || status=$?
         else
+          {{- include "remediation.record" . | nindent 10 }}
           args=(--role patch --no-clone)
-          [ -n "$(params.osv)" ]   && args+=(--osv "$(params.osv)")
+          [ -n "$osv" ]            && args+=(--osv "$osv")
           [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
           entrypoint.sh /usr/local/bin/run-agent.sh "${args[@]}" || status=$?
         fi

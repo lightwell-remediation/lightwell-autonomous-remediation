@@ -20,7 +20,18 @@ spec:
   params:
     - name: osv
       type: string
-      description: The vulnerability record, as a URL or a path in the workspace.
+      description: >-
+        The vulnerability record, as a URL or a path in the workspace. A URL
+        is fetched once, by the analysis, with the Lightwell credentials where
+        they are set; every later phase reads that copy.
+      default: ""
+    - name: vulnerability
+      type: string
+      description: >-
+        The one vulnerability the run is for, when the record bundles several
+        fixed by the same release, as Lightwell advisories do. Held against
+        the analysis, which every later phase takes it from. Empty means the
+        record describes one.
       default: ""
     - name: application
       type: string
@@ -72,8 +83,8 @@ spec:
       optional: true
     - name: osv
       description: >-
-        The vulnerability record. One per run, mounted rather than fetched,
-        so the run does not depend on Lightwell being reachable from here.
+        The vulnerability record, mounted. One per run. Unbound when the osv
+        param is a URL; a mounted record needs no network and replays the same.
       optional: true
 
   tasks:
@@ -103,6 +114,8 @@ spec:
           value: $(params.image)
         - name: osv
           value: $(params.osv)
+        - name: vulnerability
+          value: $(params.vulnerability)
         - name: model
           value: $(params.model)
         - name: clone

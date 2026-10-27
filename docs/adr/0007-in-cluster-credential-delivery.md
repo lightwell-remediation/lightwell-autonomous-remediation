@@ -83,7 +83,7 @@ The variable names in the cluster are **identical** to the local ones, so
 | `lightwell-github` | `GITHUB_TOKEN`, `APP_REPO`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | the agent session, for clone, push and the pull request |
 | `lightwell-git-source` | `username`, `password`, type `kubernetes.io/basic-auth` | the image build, to clone this repository while it is private |
 | `lightwell-repo` | `type`, `url`, `username`, `password`, in `openshift-gitops` | ArgoCD, to read this repository while it is private |
-| `lightwell-lightwell` | `LW_USERNAME`, `LW_PASSWORD`, `LW_MAVEN_REPO_URL` | nobody yet, Phase 3 trigger. Created only when the values are set |
+| `lightwell-lightwell` | `LW_USERNAME`, `LW_PASSWORD`, `LW_MAVEN_REPO_URL`, `LW_OSV_BASE_URL` | the runtime, before the session: Maven resolving the Lightwell repositories, and fetching the vulnerability record. Never the agent. Created only when the values are set (path A) |
 
 The split is what keeps the Phase 3 question open as a mount decision: a trigger
 task can read `lightwell-lightwell` without the agent step ever seeing it, and

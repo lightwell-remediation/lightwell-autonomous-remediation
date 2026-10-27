@@ -25,6 +25,12 @@ spec:
       type: string
       description: Vulnerability record, as a path in the workspace or a URL.
       default: ""
+    - name: vulnerability
+      type: string
+      description: >-
+        The vulnerability the run is for, where the record bundles several.
+        Only the analysis takes it.
+      default: ""
     - name: model
       type: string
       description: >-
@@ -67,8 +73,9 @@ spec:
     - name: osv
       description: >-
         The vulnerability record, as a ConfigMap. One record per run. A URL
-        works just as well — the param takes either — but a mounted record
-        needs no network and makes the run reproducible.
+        works just as well — the param takes either, and the first phase
+        fetches it — but a mounted record needs no network and replays the
+        same.
       optional: true
       mountPath: /osv
   volumes:
@@ -117,8 +124,10 @@ spec:
             node "$gate" "$document" || status=$?
           fi
         else
+          {{- include "remediation.record" . | nindent 10 }}
           args=(--role "$(params.role)")
-          [ -n "$(params.osv)" ]   && args+=(--osv "$(params.osv)")
+          [ -n "$osv" ]            && args+=(--osv "$osv")
+          [ -n "$(params.vulnerability)" ] && args+=(--vulnerability "$(params.vulnerability)")
           [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
           [ "$(params.clone)" = "true" ] || args+=(--no-clone)
           [ -n "$(params.app-branch)" ] && args+=(--branch "$(params.app-branch)")
