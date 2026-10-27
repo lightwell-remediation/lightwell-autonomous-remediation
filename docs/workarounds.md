@@ -36,6 +36,15 @@ What this costs:
   records that there was nothing to validate against and the pull request
   carries no TPA section. Everything else runs unchanged.
 - **Egress** from `lightwell-agents` to a public route on another cluster.
+- **A fresh copy of a template cannot be onboarded on a shared instance.**
+  TPA deduplicates an inventory it already holds: uploading the copy's
+  `sbom.json`, identical to the original's, returns the existing SBOM with the
+  original application's labels, and no baseline is ever found under the
+  copy's name. Found replicating on 2026-10-27: `tpa-onboard.sh` reported
+  success and the pull request said no baseline was registered. This is why
+  TPA was taken out of the replication guide.
+- **Onboard before the run.** The `sbom` task looks the baseline up while the
+  run is in progress; registering it afterwards leaves that run without one.
 
 ### How to verify the fix
 

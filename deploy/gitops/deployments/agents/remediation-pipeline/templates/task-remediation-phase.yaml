@@ -10,7 +10,8 @@ spec:
     One agent phase: invoke a role, leave its document in the workspace's out
     directory, and publish its terminal state so the Pipeline can gate on it.
     Used for analyze, demonstrate and deliver; patching and verification share
-    a Task of their own because they retry together.
+    a Task of their own because they retry together. demonstrate alone is
+    retried here, and only after a reply refused for the output cap.
   params:
     - name: role
       type: string
@@ -99,6 +100,18 @@ spec:
 
         document="$OUT/$(params.document)"
 
+        # Only demonstrate is retried (retries: 1 in the Pipeline), and only
+        # for the one cause the attempt itself can tell apart: a reply refused
+        # for exceeding the output cap, on a checkout the session never
+        # changed. Any other failure leaves this sentinel, and the second
+        # attempt stops here having started no session and spent nothing.
+        no_retry="$OUT/.no-retry-$(params.role)"
+        if [ -f "$no_retry" ]; then
+          echo "phase $(params.role): not retried — $(cat "$no_retry")" >&2
+          emit "none" > "$(results.terminal-state.path)"
+          exit 1
+        fi
+
         if [ "$(params.replay)" = "true" ]; then
           fixture="/fixtures/$(params.fixture)"
           if [ ! -r "$fixture" ]; then
@@ -143,4 +156,15 @@ spec:
         state="$(state_of "$document")"
         emit "$state" > "$(results.terminal-state.path)"
         echo "phase $(params.role): terminal state ${state:-none}, exit $status"
+
+        if [ "$status" != "0" ]; then
+          repo="$(workspaces.source.path)/repo"
+          if [ "$(params.replay)" != "true" ] \
+             && grep -qE 'exceeded the [0-9]+ output token maximum' "$OUT/result.json" 2>/dev/null \
+             && [ -z "$(git -C "$repo" status --porcelain 2>/dev/null)" ]; then
+            echo "phase $(params.role): a reply exceeded the output cap and nothing was changed — retryable" >&2
+          else
+            echo "failed with ${state:-no document}, not a refused reply on a clean checkout" > "$no_retry"
+          fi
+        fi
         exit "$status"

@@ -3,7 +3,8 @@
 # Contract:   ../specs/platform/cluster-bootstrap.spec.md
 # Decisions:  ../docs/adr/0006-cluster-bootstrap-topology.md
 #
-# Fresh cluster:  make deploy-all && make build-image && make validate
+# Fresh cluster:  make deploy-all && make validate  (the image builds on its own;
+#                 make build-image only after a failed build)
 
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help

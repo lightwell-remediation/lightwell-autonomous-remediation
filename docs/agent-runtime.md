@@ -433,7 +433,15 @@ therefore `throughput × 60s`:
 | `qwen38-27b` | ~22 tok/s | ~1,300 tokens |
 | `gpt-oss-120b` | cut before first token | unusable |
 
-The runtime therefore pins `CLAUDE_CODE_MAX_OUTPUT_TOKENS` to 2048. Left alone,
+The runtime therefore pins `CLAUDE_CODE_MAX_OUTPUT_TOKENS`: 2048 for `analyze`,
+4096 for the roles that write code (`exploit`, `patch`, `verify`, `deliver`),
+because a test class does not fit in 2048 and 4096 was measured to finish
+inside the window on `claude-sonnet-4-6`. A reply past the cap is refused, not
+truncated: the session stops with `api_error` and the phase fails. The prompts
+ask for files to be written in pieces, which the model does not always do —
+one `demonstrate` failure in two path B runs on 2026-10-27. The Pipeline
+therefore retries `demonstrate` once, only after that refusal and only on an
+untouched checkout ([orchestration.md](orchestration.md)). Left alone,
 Claude Code asks for 32,000 and every long reply dies on the wall, surfacing as
 a retry storm rather than a clear error. Raise it only after measuring the model
 you pinned. Model choice is likewise a throughput decision, not a price one.
@@ -443,9 +451,8 @@ removes it.
 
 | Also known | |
 |---|---|
-| Minimum Claude Code version | `--permission-prompts none` does not exist before 2.1.2xx. The upstream image pins 2.1.123, so build it with `--build-arg CLAUDE_CODE_VERSION=` |
+| Minimum Claude Code version | `--permission-prompts none` does not exist before 2.1.2xx. The upstream image pins 2.1.123; the bootstrap builds it with `claudeCodeVersion` from `deploy/gitops/bootstrap-infra/values.yaml` (2.1.295) |
 | Permission rules match a prefix | A command the agent wrote across several lines with `\` is denied even when the allowlist covers it. Prompts must ask for single-line commands and pass long arguments by file |
-| Prompts are not versioned | They live outside this repository, so what the agent was told is neither reviewable nor reproducible. Milestone 2 task in [ROADMAP](ROADMAP.md) |
 | Only the happy path is tested | Untested: a build still failing after the patch, a vulnerability the agent cannot fix, multi-module repositories, and defects with no dependency to bump |
 
 ## Not decided here

@@ -43,6 +43,10 @@ spec:
       description: >-
         owner/repo. The label the application's baseline inventory was
         registered under in TPA (scripts/tpa-onboard.sh).
+    - name: run-name
+      type: string
+      description: The PipelineRun's name, labelled on the uploaded inventory.
+      default: ""
     - name: app-branch
       type: string
       description: The branch remediated; prefers a baseline of that ref.
@@ -132,8 +136,11 @@ spec:
           value: $(params.application)
         - name: APP_BRANCH
           value: $(params.app-branch)
+        # A Task cannot read $(context.pipelineRun.name); it reached TPA as
+        # that literal string. The Pipeline passes it in, as it does to the
+        # claim.
         - name: RUN_NAME
-          value: $(context.pipelineRun.name)
+          value: $(params.run-name)
       {{- include "remediation.cliResources" . | nindent 6 }}
       script: |
         #!/usr/bin/env bash

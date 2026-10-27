@@ -33,9 +33,8 @@ log_step "OpenShift version"
 OCP_VERSION="$(oc get clusterversion version -o jsonpath='{.status.desired.version}' 2>/dev/null)"
 if [[ -n "$OCP_VERSION" ]]; then
   log_ok "OpenShift $OCP_VERSION"
-  case "$OCP_VERSION" in
-    4.1[0-5].*) log_skip "RHOAI 3.5 wants 4.16 or newer, this is $OCP_VERSION" ;;
-  esac
+  OCP_MINOR="$(cut -d. -f2 <<<"$OCP_VERSION")"
+  (( OCP_MINOR >= 19 )) || fail "OpenShift 4.19 or newer is required, this is $OCP_VERSION"
 else
   fail "cannot read the cluster version"
 fi
