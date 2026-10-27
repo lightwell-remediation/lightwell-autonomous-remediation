@@ -41,7 +41,7 @@ if anyone wants llm-d style serving here.
 
 ## Prerequisites
 
-- OpenShift 4.16 or newer, cluster admin, `oc` and `helm` 3
+- OpenShift 4.19 or newer, cluster admin, `oc` and `helm` 3
 - A default StorageClass, the image registry Managed with real storage, and the
   `Build` and `ImageRegistry` capabilities enabled
 - Egress from build pods to GitHub, npm and the Red Hat registries

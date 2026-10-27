@@ -77,7 +77,7 @@ only).
 
 | Prerequisite | |
 |---|---|
-| OpenShift 4.16+, cluster-admin | 16 CPU / 48 GiB minimum, no GPU. Validated on RHDP *Field Sourced Content – OpenShift Base*, OCP 4.22 |
+| OpenShift 4.19+, cluster-admin | 16 CPU / 48 GiB minimum, no GPU. Validated on RHDP *Field Sourced Content – OpenShift Base*, OCP 4.22 |
 | RHDP MaaS API key **with access to `claude-sonnet-4-6`** | The model every run was validated with. Not enabled for a MaaS key by default: request access to it |
 | Your own copy of the application | From a template; **private** on path A, since the agent's pull requests show Lightwell data |
 | GitHub fine-grained PAT | Scoped to that copy |

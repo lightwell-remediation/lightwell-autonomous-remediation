@@ -95,7 +95,7 @@ private sample with the answer stripped from every commit
 
 | You need | For | Path |
 |---|---|---|
-| An OpenShift 4.16+ cluster, cluster-admin | Everything | A and B. An RHDP OpenShift cluster works; sizing below |
+| An OpenShift 4.19+ cluster, cluster-admin | Everything | A and B. An RHDP OpenShift cluster works; sizing below |
 | RHDP MaaS endpoint and an API key **with access to `claude-sonnet-4-6`** | The agent's inference, on the hosted Red Hat Demo Platform MaaS | A and B. Every run was validated with `claude-sonnet-4-6`, and the other models available tried and failed ([model comparison](measurements/model-comparison-2026-10-19.md)). A MaaS key does not get that model by default: request access to it before starting. The `/v1/models` check below shows whether your key has it |
 | GitHub fine-grained PAT | Clone, push, open the pull request | A and B. Scoped to **your copy** of the application only (step 1): Contents and Pull requests read/write, Metadata read |
 | Lightwell username, password, remediated repository URL and OSV records URL | Maven resolves the Lightwell rebuild; the pipeline fetches the vulnerability record | **A only** (`LW_USERNAME`, `LW_PASSWORD`, `LW_MAVEN_REPO_URL`, `LW_OSV_BASE_URL`). Without them on path A, `verify` fails with an error that looks like a bad patch |
