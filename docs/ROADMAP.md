@@ -581,8 +581,9 @@ Tasks:
       timeouts do not match what they promise; `setup-secrets.sh` builds an
       unmatchable repo credential from an SSH clone and does not validate
       `APP_REPO`; the `lightwell-lightwell` Secret (`LW_USERNAME` / `LW_PASSWORD`)
-      is not created by `make secrets`; the Pipelines and GitOps console plugins
-      are not enabled by the chart (see Phase 0.5); smaller doc and value drift
+      is not created by `make secrets`; the GitOps console plugin is not enabled
+      by the chart (the Pipelines one is since 2026-10-27, a PostSync Job in
+      `platform/openshift-pipelines`); smaller doc and value drift
       (Application count in the skill, "four Secrets", dead `serviceAccount`
       value, preflight CPU off-by-one) (Roberto)
 - [ ] Extend the Phase 0.5 RHOAI 3.x install with the components Milestone 2 needs.
@@ -599,10 +600,12 @@ Tasks:
       Lightwell repositories from inside it
 - [ ] Deploy EvalHub for automated evaluation
 - [ ] NeMo Guardrails via TrustyAI (optional)
-- [ ] **TPA on the pipeline's cluster**, with the Lightwell integration and
-      OSV records loaded, replacing the Milestone 1 instance on a separate
-      cluster. Configuration only — repoint the `TPA_*` values and register
-      the baseline again ([workarounds](workarounds.md))
+- [ ] **Install TPA in the pipeline's cluster**, as part of the GitOps
+      bootstrap, with the Lightwell integration and OSV records loaded,
+      replacing the Milestone 1 instance on a separate cluster. Then repoint
+      the `TPA_*` values and register the baseline again
+      ([workarounds](workarounds.md)). A Milestone 1 limitation stated in
+      [replicate.md](replicate.md#limitations-of-milestone-1)
 
 ### Phase 6: Multi-Agent Engine (dual-agent + LLM-as-a-Judge)
 

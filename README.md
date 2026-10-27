@@ -77,25 +77,15 @@ only).
 
 | Prerequisite | |
 |---|---|
-| OpenShift 4.16+, cluster-admin | 16 CPU / 48 GiB minimum, no GPU. Validated on RHDP, OCP 4.21 |
-| Red Hat MaaS API key | Validated with `claude-sonnet-4-6` |
+| OpenShift 4.19+, cluster-admin | 16 CPU / 48 GiB minimum, no GPU. Validated on RHDP *Field Sourced Content – OpenShift Base*, OCP 4.22 |
+| RHDP MaaS API key **with access to `claude-sonnet-4-6`** | The model every run was validated with. Not enabled for a MaaS key by default: request access to it |
 | Your own copy of the application | From a template; **private** on path A, since the agent's pull requests show Lightwell data |
 | GitHub fine-grained PAT | Scoped to that copy |
 | Lightwell credentials | Path A only |
-| Trusted Profile Analyzer | Optional |
+| Trusted Profile Analyzer | Optional, an existing instance; not installed in the cluster in Milestone 1 |
 
-```bash
-gh repo create <you>/<app> --private \
-  --template lightwell-remediation/document-intake-service  # path A: lw-apache-cxf-demo-template
-cp secrets/secrets.template.env secrets/secrets.env      # fill it in, APP_REPO=<you>/<app>
-(cd deploy && make deploy-all && make validate)          # the platform, via GitOps
-scripts/push-secrets.sh
-helm upgrade --install remediation-pipeline \
-  deploy/gitops/deployments/agents/remediation-pipeline \
-  -n lightwell-agents                                      # image built in step above
-scripts/run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json
-                                     # path A: x_RHLW-CVE-2026-68079-4.2.2, fetched from Lightwell
-```
+Every step, with the command, what success looks like and how long it takes:
+**[docs/replicate.md](docs/replicate.md)**.
 
 ## Red Hat products
 
