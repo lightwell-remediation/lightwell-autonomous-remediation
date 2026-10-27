@@ -254,6 +254,8 @@ spec:
           value: $(params.replay)
         - name: application
           value: $(params.application)
+        - name: run-name
+          value: $(context.pipelineRun.name)
         - name: app-branch
           value: $(params.app-branch)
         - name: cache-claim
