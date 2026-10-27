@@ -306,43 +306,19 @@ fit its slot. They sat in Phase 3 until the DevSecOps scope was cut on
 2026-10-20; none of them is pipeline work, and the pipeline they apply to is the
 one Phase 2 already built.
 
-- [ ] **The image tag costs a second commit, and that is the monorepo.**
-      The runtime and the chart that references it share a repository, so a
-      tag naming a commit cannot exist until the code is on `main` — which
-      means merge, build, then a second commit moving `values.yaml` to the
-      new tag. It is a known cost, accepted for now, and it does not chase
-      its own tail: the tag commit touches only `values.yaml`, which is not
-      in the build context (`.dockerignore` excludes `deploy/`, and
-      `--from-dir` packages `agent-runtime/` alone), so the image for
-      `main-<sha>` is identical to the one the follow-up commit would
-      produce and no rebuild follows. What would remove the step is building
-      on merge and letting the tag be the merge commit, or referencing the
-      digest the build writes — both are work, neither is urgent (David)
-- [ ] **The chart does not use the image the cluster already built.** Found
-      in the jury validation on a fresh RHDP cluster, 2026-10-27. The
-      BuildConfigs build the runtime on their own (ConfigChange on the base,
-      ImageChange chaining the runtime), but the remediation chart points at
-      a `main-<sha>` tag that only `scripts/build-runtime-image.sh` creates.
-      Two reasons it does, both sound:
-      - the BuildConfig's own tag (`lightwell-agent-runtime:2.1.295`) is
-        overwritten on every build, so a run would execute whatever was built
-        last and no pull request could name the commit it came from;
-      - with `pullPolicy: IfNotPresent` a reused tag keeps serving the layer
-        the node cached first, so a rebuild changes nothing — a bug already
-        hit. A `<ref>-<sha>` tag is never reused, which makes `IfNotPresent`
-        safe.
-
-      What it costs today: the same commit is built twice (~4 extra minutes
-      on a fresh cluster), and the `values.yaml` default
-      (`main-9768e2d`, a commit of the retired `-dev` history) exists in no
-      cluster, so a `helm install` without `--set image.agent=…` leaves every
-      task in `ImagePullBackOff`. Ways out, cheapest first: have
-      `build-runtime-image.sh` add the `main-<sha>` tag to the automatic
-      build with `oc tag` when that build already came from the commit,
-      instead of rebuilding; or reference the image by the **digest** the
-      build writes, which is immutable even when the tag is not and answers
-      both reasons at once; or build on merge so the tag is the merge commit
-      (David)
+- [x] **Version the runtime image** (2026-10-27). The tag used to name a
+      commit (`main-<sha>`), which cost a second commit per change, a tag that
+      only `scripts/build-runtime-image.sh` created, a chart default that
+      existed in no fresh cluster (`ImagePullBackOff` without `--set`), and
+      the same commit built twice. The runtime now has its own semantic
+      version (`agents.runtimeImage.version`); the cluster's build publishes
+      `lightwell-agent-runtime:<version>` and the remediation chart names the
+      same tag, so a fresh cluster needs no script and no `--set`. A version is
+      never reused, which keeps `IfNotPresent` honest: the
+      `runtime-image-version` skill bumps every copy and
+      `scripts/check-image-version.sh` fails when they disagree or the image
+      changed without a bump ([ADR-0008](adr/0008-agent-runtime-image-delivery.md)
+      amendment) (David)
 - [x] **Put the BuildConfig's branch in the chart.** The runtime ref is
       `agents.runtimeImage.appRepoRef: "main"` in
       `deploy/gitops/bootstrap-infra/values.yaml` since PR #4, so ArgoCD no

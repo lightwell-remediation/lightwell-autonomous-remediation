@@ -263,7 +263,9 @@ the default `IfNotPresent` the node keeps serving the layer it cached first and 
 rebuild changes nothing. That cost a debugging round whose symptom was a module the
 image demonstrably contained. Referencing the image by digest is the real fix and
 needs the build to publish an immutable tag; until then, `Always` is the honest
-setting.
+setting. *Superseded 2026-10-27:* the runtime is tagged with its own version,
+never reused ([ADR-0008](0008-agent-runtime-image-delivery.md) amendment), and the
+steps pull `IfNotPresent`.
 
 **Container limits are 4 CPU and 8 GiB.** A build needing more is rejected by the
 LimitRange rather than the scheduler, and that error does not read as one about

@@ -3,12 +3,16 @@
 #
 # Two chained builds, because the upstream Claude Code image cannot be
 # redistributed and so has to be built per environment (ADR-0003, ADR-0008).
-# The tag is the harness version, not latest, so a pod references a build.
+# The base is tagged with the harness version, our runtime with its own
+# version, never latest, so a pod references a build.
 namespace: lightwell-agents
 
 # Pinned together with agent-runtime/build-image.sh. Bump in both places and
 # re-run the ADR-0003 validation when you do.
 claudeCodeVersion: "2.1.295"
+# The runtime's own version and its output tag. Set from
+# agents.runtimeImage.version in bootstrap-infra.
+runtimeVersion: "1.0.0"
 ghVersion: "2.63.2"
 
 upstream:

@@ -204,7 +204,7 @@ what the next step needs, and `make validate` is where you look.
 make status                 # applications and the agent namespace
 make argocd                 # URL, user and password
 make lint && make template  # no cluster needed, what CI runs
-make build-image FORCE=1    # rebuild after bumping claudeCodeVersion
+make build-image FORCE=1    # rebuild after bumping a pin (and the runtime version)
 make clean-runs             # delete old PipelineRuns and their PVCs
 make undeploy               # remove the app of apps, keep the operators
 ```

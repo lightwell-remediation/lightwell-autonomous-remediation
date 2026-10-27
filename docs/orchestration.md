@@ -86,15 +86,18 @@ Two prerequisites, both of which fail in misleading ways if skipped:
 | An image built from the current `agent-runtime/` | `run-agent.sh` rejects a role, or a gate module is "not found" |
 
 ```bash
-scripts/push-secrets.sh               # all three Secrets, from secrets.env
-scripts/build-runtime-image.sh main   # build and tag <ref>-<sha>
-scripts/build-runtime-image.sh --from-dir   # or the working tree, unpushed
+scripts/push-secrets.sh                     # all three Secrets, from secrets.env
+scripts/build-runtime-image.sh              # only if <version> is missing
+scripts/build-runtime-image.sh --from-dir   # try the working tree, unpushed
 ```
 
-`build-runtime-image.sh` prints the `--set image.agent=…` line that points
-the chart at what it just built. The tag it creates is never reused; the
-BuildConfig's own output tag is overwritten on every build and must not be
-referenced from the chart.
+The runtime is versioned (`agents.runtimeImage.version`), the cluster's build
+publishes it as `lightwell-agent-runtime:<version>`, and the chart names the
+same tag, so nothing needs a `--set`. A change to `agent-runtime/` bumps the
+version — the `runtime-image-version` skill does it and
+`scripts/check-image-version.sh` holds every copy to it. `--from-dir` builds
+the working tree as a `wip-` tag through a throwaway BuildConfig, so the
+version tag is never overwritten, and prints the `--set` line to try it.
 
 ## A real run
 
@@ -143,11 +146,11 @@ lightwell-agents` shows what is remembered, and `--reset-values` puts the
 chart back in charge. Worth doing on any upgrade meant to restore the
 committed state.
 
-**The BuildConfig's output tag is not immutable.** It is overwritten on every
-build, so with the default `IfNotPresent` a node keeps serving the layer it
-cached first and a rebuild changes nothing — the symptom was a module the
-image demonstrably contained. The chart references a tag naming the commit
-instead, which `build-runtime-image.sh` creates and never reuses.
+**A reused tag is not immutable.** With `IfNotPresent` a node keeps serving
+the layer it cached first, so rebuilding under the same tag changes nothing —
+the symptom was a module the image demonstrably contained. The tag is now the
+runtime's version, bumped whenever the image changes and never rebuilt with
+other contents (`scripts/check-image-version.sh`).
 
 **`oc start-build --from-dir` ignores `.dockerignore`.** It tars the whole
 directory, so it trips over `.workspace/` — owned by the container's mapped

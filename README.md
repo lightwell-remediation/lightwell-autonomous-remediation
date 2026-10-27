@@ -89,10 +89,10 @@ gh repo create <you>/<app> --private \
   --template lightwell-remediation/document-intake-service  # path A: lw-apache-cxf-demo-template
 cp secrets/secrets.template.env secrets/secrets.env      # fill it in, APP_REPO=<you>/<app>
 (cd deploy && make deploy-all && make validate)          # the platform, via GitOps
-scripts/push-secrets.sh && scripts/build-runtime-image.sh main
+scripts/push-secrets.sh
 helm upgrade --install remediation-pipeline \
   deploy/gitops/deployments/agents/remediation-pipeline \
-  -n lightwell-agents --set image.agent=<printed above>
+  -n lightwell-agents                                      # image built in step above
 scripts/run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json
                                      # path A: x_RHLW-CVE-2026-68079-4.2.2, fetched from Lightwell
 ```

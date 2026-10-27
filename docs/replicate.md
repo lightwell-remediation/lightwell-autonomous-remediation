@@ -162,15 +162,15 @@ RHOAI, and what is deliberately not GitOps: [deploy/README.md](../deploy/README.
 
 ```bash
 scripts/push-secrets.sh                 # MaaS, GitHub (+ Lightwell and TPA if set)
-scripts/build-runtime-image.sh main     # builds and prints the --set line below
 helm upgrade --install remediation-pipeline \
   deploy/gitops/deployments/agents/remediation-pipeline \
-  --namespace lightwell-agents --wait \
-  --set image.agent=<printed by build-runtime-image.sh>
+  --namespace lightwell-agents --wait
 ```
 
-The image tag names the commit it was built from and is never reused, so a
-run always knows which runtime it ran. The chart is applied with Helm, not yet
+The agent runtime image is already in the cluster: step 3 built it as
+`lightwell-agent-runtime:<version>`, and the chart names that same version. A
+version is never reused, so a run always knows which runtime it ran. If the
+image is missing (a failed build), `scripts/build-runtime-image.sh` builds it. The chart is applied with Helm, not yet
 by ArgoCD, while it is still changing. Why one Task per phase:
 [ADR-0009](adr/0009-tekton-pipeline-orchestration.md); the full guide:
 [orchestration.md](orchestration.md).

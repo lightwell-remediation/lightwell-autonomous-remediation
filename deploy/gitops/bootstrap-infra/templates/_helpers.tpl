@@ -10,9 +10,9 @@ Usage: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/mlflow") }}
 {{- end -}}
 
 {{/*
-Internal registry pull spec for an ImageStreamTag in the agent namespace.
+Internal registry pull spec for the agent runtime, at its version.
 Usage: {{ include "bootstrap.imageRef" (dict "ctx" . "name" "lightwell-agent-runtime") }}
 */}}
 {{- define "bootstrap.imageRef" -}}
-{{- printf "image-registry.openshift-image-registry.svc:5000/%s/%s:%s" .ctx.Values.agents.namespace .name .ctx.Values.agents.runtimeImage.claudeCodeVersion -}}
+{{- printf "image-registry.openshift-image-registry.svc:5000/%s/%s:%s" .ctx.Values.agents.namespace .name .ctx.Values.agents.runtimeImage.version -}}
 {{- end -}}
