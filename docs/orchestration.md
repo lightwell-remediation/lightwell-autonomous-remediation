@@ -19,7 +19,11 @@ claim → analyse → remediable? → baseline → green? → demonstrate → pa
 
 Each phase is a Task; each gate is a `when` expression on the previous
 phase's terminal state. Patching and verification are one Task with
-`retries: 1`, because they retry together.
+`retries: 1`, because they retry together. `demonstrate` also has
+`retries: 1`, for one failure only: a reply refused for exceeding the output
+cap ([agent-runtime.md — Known limitations](agent-runtime.md#known-limitations))
+on a checkout the session left untouched. Every other failure leaves a
+sentinel in `out/`, and the second attempt exits without starting a session.
 
 `sbom` rebuilds the application's bill of materials from the remediated
 tree. After verification so it describes a tree that passed, and before

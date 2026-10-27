@@ -439,7 +439,9 @@ because a test class does not fit in 2048 and 4096 was measured to finish
 inside the window on `claude-sonnet-4-6`. A reply past the cap is refused, not
 truncated: the session stops with `api_error` and the phase fails. The prompts
 ask for files to be written in pieces, which the model does not always do —
-one `demonstrate` failure in two path B runs on 2026-10-27. Left alone,
+one `demonstrate` failure in two path B runs on 2026-10-27. The Pipeline
+therefore retries `demonstrate` once, only after that refusal and only on an
+untouched checkout ([orchestration.md](orchestration.md)). Left alone,
 Claude Code asks for 32,000 and every long reply dies on the wall, surfacing as
 a retry storm rather than a clear error. Raise it only after measuring the model
 you pinned. Model choice is likewise a throughput decision, not a price one.

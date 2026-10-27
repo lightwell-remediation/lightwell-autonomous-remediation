@@ -78,6 +78,16 @@ times the gateway window.
 - THEN the runtime has capped the output budget so replies complete in-window
 - AND the session does not fail with dropped connections and retry backoff
 
+#### Scenario: A Reply Exceeds The Cap During The Demonstration
+
+- GIVEN the demonstration session stops because one reply exceeded the output
+  cap
+- AND the checkout carries no change from that session
+- WHEN the phase fails
+- THEN the pipeline runs the demonstration once more on the same checkout
+- AND any other demonstration failure, or a cap failure that left a change
+  behind, is not retried
+
 ### Requirement: Model Portability
 
 The runtime SHALL NOT hardcode a model family. Switching to a different model

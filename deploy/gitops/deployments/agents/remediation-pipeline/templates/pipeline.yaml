@@ -169,8 +169,15 @@ spec:
     # After the baseline, never before: the generated test is meant to fail,
     # and a baseline containing it is red by construction and would stop the
     # run before the remediation it exists to prove.
+    #
+    # retries: 1 covers one failure only: the session wrote a whole test in a
+    # single reply, the output cap refused it, and the checkout is untouched.
+    # The prompt asks for smaller writes and the model does not always comply
+    # (one path B run in two on 2026-10-27). remediation-phase leaves a
+    # sentinel for every other failure, so the second attempt spends nothing.
     - name: demonstrate
       runAfter: [baseline]
+      retries: 1
       when:
         - input: $(tasks.baseline.results.state)
           operator: in
