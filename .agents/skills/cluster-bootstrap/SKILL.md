@@ -56,7 +56,8 @@ the branch. A commit that only exists on the laptop does not exist for ArgoCD.
 
 ## Expected result
 
-`make validate` green, which means: 7 Applications Synced and Healthy, three
+`make validate` green, which means: 10 Applications Synced and Healthy (the
+remediation Pipeline among them), three
 operator CSVs Succeeded, the DataScienceCluster Ready with `DashboardReady` and
 `MLflowOperatorReady`, MLflow Available, the Secrets present, the runtime image
 built, and **two agent shaped Tekton tasks succeeding in parallel** plus the

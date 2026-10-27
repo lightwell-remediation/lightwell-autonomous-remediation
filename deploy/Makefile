@@ -108,7 +108,12 @@ argocd:
 
 lint:
 	@helm lint $(CHART)
-	@for c in gitops/deployments/*/*/; do helm lint "$$c" || exit 1; done
+	@# A chart whose required values come from bootstrap-infra carries
+	@# ci/lint-values.yaml so it can be linted on its own.
+	@for c in gitops/deployments/*/*/; do \
+		f=""; [ -f "$$c/ci/lint-values.yaml" ] && f="-f $$c/ci/lint-values.yaml"; \
+		helm lint "$$c" $$f || exit 1; \
+	done
 
 template:
 	@for p in values/cluster-plain.yaml values/cluster-rhoai-existing.yaml; do \

@@ -20,7 +20,13 @@
 #
 # Usage:
 #   run-remediation.sh <osv-file|url|lightwell-id|osv-id> [--vulnerability <id>]
-#                      [--branch <name>] [--model <id>] [--no-follow]
+#                      [--branch <name>] [--model <id>] [--image <ref>]
+#                      [--no-follow]
+#
+# --image runs this one remediation on another runtime image, typically a
+# wip- build from build-runtime-image.sh --from-dir. The Pipeline's own image
+# is ArgoCD's to set (agents.runtimeImage.version), so a change to try goes
+# here rather than into the chart.
 #
 # --vulnerability names the vulnerability the run is for when the record
 # bundles several fixed by one release, as Lightwell advisories do.
@@ -53,16 +59,18 @@ log() { printf 'run-remediation: %s\n' "$*" >&2; }
 
 OSV=""
 MODEL=""
+IMAGE=""
 VULNERABILITY=""
 BRANCH="${APP_BRANCH:-}"
 FOLLOW=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --model)     MODEL="${2:?--model needs a value}"; shift 2 ;;
+    --image)     IMAGE="${2:?--image needs a value}"; shift 2 ;;
     --branch)    BRANCH="${2:?--branch needs a value}"; shift 2 ;;
     --vulnerability) VULNERABILITY="${2:?--vulnerability needs a value}"; shift 2 ;;
     --no-follow) FOLLOW=0; shift ;;
-    -h|--help)   sed -n '2,41p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,45p' "$0"; exit 0 ;;
     -*)          die "unknown argument: $1" ;;
     *)           OSV="$1"; shift ;;
   esac
@@ -172,6 +180,7 @@ spec:
       value: "$BRANCH"
     - name: model
       value: "$MODEL"
+$( [ -z "$IMAGE" ] || printf '    - name: image\n      value: "%s"\n' "$IMAGE" )
     - name: replay
       value: "false"
     - name: cache-claim
@@ -195,6 +204,7 @@ log "  record      $record ($source_kind)"
 [ -z "$VULNERABILITY" ] || log "  vulnerability $VULNERABILITY"
 log "  branch      ${BRANCH:-the repository default}"
 log "  model       ${MODEL:-from the MaaS Secret}"
+[ -z "$IMAGE" ] || log "  image       $IMAGE"
 
 [ "$FOLLOW" -eq 1 ] || { printf '%s\n' "$run"; exit 0; }
 

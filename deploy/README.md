@@ -90,7 +90,7 @@ make deploy PRESET=values/cluster-rhoai-existing.yaml
 |---|---|
 | `make gitops` | It installs the reconciler. It cannot reconcile itself into existence |
 | `make secrets` | Nothing secret goes in git or into an Application spec |
-| the smoke PipelineRun | One shot and immutable, so under GitOps it is permanent drift |
+| the smoke PipelineRun, and every remediation run | One shot and immutable, so under GitOps it is permanent drift. The remediation Pipeline itself is reconciled (`agents-remediation-pipeline`) |
 
 Everything else is reconciled. Delete a Deployment and it comes back.
 

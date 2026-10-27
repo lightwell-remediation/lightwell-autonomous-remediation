@@ -22,7 +22,7 @@
 # --from-dir uploads agent-runtime/ as the build context, so a runtime change
 # can be exercised in the cluster before it is pushed anywhere. It builds
 # through a temporary BuildConfig whose output is the wip- tag, so the version
-# tag is never touched, and prints the --set line that points the chart at it.
+# tag is never touched, and prints the run-remediation.sh --image line to try it.
 #
 # Exit status:
 #   0  the image is in the cluster at the expected tag
@@ -132,10 +132,8 @@ print(json.dumps(bc))
   [ -n "$digest" ] || { log "could not read the built image's digest"; exit 1; }
   printf '\n  built    working tree at %s\n  digest   %s\n  tag      %s:%s\n\n' \
     "$short" "$digest" "$IMAGE_STREAM" "$TAG" >&2
-  printf 'Point the chart at it, to try it (never commit a wip- tag):\n' >&2
-  printf '  helm upgrade --install remediation-pipeline \\\n' >&2
-  printf '    deploy/gitops/deployments/agents/remediation-pipeline \\\n' >&2
-  printf '    --namespace %s --set image.agent=%s:%s\n' "$NAMESPACE" "$REGISTRY" "$TAG" >&2
+  printf 'Try it on one run (the Pipeline itself stays on the version ArgoCD sets):\n' >&2
+  printf '  scripts/run-remediation.sh <record> --image %s:%s\n' "$REGISTRY" "$TAG" >&2
   exit 0
 fi
 

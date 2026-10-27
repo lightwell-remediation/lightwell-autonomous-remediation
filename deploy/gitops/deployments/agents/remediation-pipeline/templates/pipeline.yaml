@@ -55,7 +55,7 @@ spec:
       default: ""
     - name: image
       type: string
-      default: {{ .Values.image.agent | quote }}
+      default: {{ include "remediation.agentImage" . | quote }}
     - name: cache-claim
       type: string
       description: >-

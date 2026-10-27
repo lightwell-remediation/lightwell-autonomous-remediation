@@ -39,7 +39,11 @@ jobs:
         run: |
           helm lint deploy/gitops/bootstrap-infra
           for chart in deploy/gitops/deployments/*/*/; do
-            helm lint "$chart"
+            # Charts whose required values come from bootstrap-infra carry
+            # ci/lint-values.yaml so they can be linted on their own.
+            values=()
+            [ -f "$chart/ci/lint-values.yaml" ] && values=(-f "$chart/ci/lint-values.yaml")
+            helm lint "$chart" "${values[@]}"
           done
       - name: Render both cluster presets
         run: |

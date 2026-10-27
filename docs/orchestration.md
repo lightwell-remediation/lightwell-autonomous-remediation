@@ -44,19 +44,25 @@ one toolchain.
 
 ## Deploying
 
-The chart is applied with Helm directly. It is **not** under ArgoCD yet —
-putting it there while it still changes means a commit per iteration.
-
-```bash
-helm upgrade --install remediation-pipeline \
-  deploy/gitops/deployments/agents/remediation-pipeline \
-  --namespace lightwell-agents --wait
-```
+ArgoCD reconciles the chart, as the `agents-remediation-pipeline` Application
+of the app-of-apps (`make deploy-all`), since 2026-10-27. Until then it was a
+Helm release applied by hand, which is why the runtime's version had to be
+written in three places; now `bootstrap-infra` passes it from
+`agents.runtimeImage.version`, and the chart refuses to render without it.
 
 It creates five Tasks, the Pipeline, the dependency cache claim, and a
 service account with `get`/`list` on `pipelineruns` for the claim task alone.
-The cache claim carries `helm.sh/resource-policy: keep`, so a `helm uninstall`
-does not throw away a warm cache.
+The cache claim carries `argocd.argoproj.io/sync-options: Prune=false,Delete=false`,
+so neither a prune nor deleting the Application throws away a warm cache.
+Chart values other than the image go under
+`agents.remediationPipeline.values` in `bootstrap-infra`. To try a runtime
+change, run once on a `wip-` image rather than editing the chart:
+`scripts/run-remediation.sh <record> --image <ref>`.
+
+A cluster that installed the chart with Helm before: once ArgoCD has adopted
+the objects, drop the Helm release record without touching them,
+`oc delete secret -n lightwell-agents -l owner=helm,name=remediation-pipeline`,
+so a later `helm uninstall` cannot remove what ArgoCD now owns.
 
 ## Testing it for nothing
 
@@ -99,12 +105,13 @@ scripts/build-runtime-image.sh --from-dir   # try the working tree, unpushed
 ```
 
 The runtime is versioned (`agents.runtimeImage.version`), the cluster's build
-publishes it as `lightwell-agent-runtime:<version>`, and the chart names the
-same tag, so nothing needs a `--set`. A change to `agent-runtime/` bumps the
-version — the `runtime-image-version` skill does it and
-`scripts/check-image-version.sh` holds every copy to it. `--from-dir` builds
-the working tree as a `wip-` tag through a throwaway BuildConfig, so the
-version tag is never overwritten, and prints the `--set` line to try it.
+publishes it as `lightwell-agent-runtime:<version>`, and ArgoCD hands the
+Pipeline the same tag, so nothing needs a `--set`. A change to `agent-runtime/`
+bumps the version — the `runtime-image-version` skill does it and
+`scripts/check-image-version.sh` holds it to that. `--from-dir` builds the
+working tree as a `wip-` tag through a throwaway BuildConfig, so the version
+tag is never overwritten, and prints the `run-remediation.sh --image` line to
+try it on one run.
 
 ## A real run
 
@@ -144,14 +151,11 @@ when something needs to be edited by hand.
 
 ## Things that cost time to find
 
-**`helm upgrade` keeps the last `--set`.** Overrides are stored on the
-release, so an upgrade that passes none still serves the previous one and
-reports `STATUS: deployed` while disagreeing with git. It bit us testing a
-`wip-` image: the chart said `main-2cc0d31`, the cluster ran the old tag,
-and nothing said so. `helm get values remediation-pipeline -n
-lightwell-agents` shows what is remembered, and `--reset-values` puts the
-chart back in charge. Worth doing on any upgrade meant to restore the
-committed state.
+**`helm upgrade` kept the last `--set`** while the chart was a Helm release:
+an upgrade that passed none still served the previous override and reported
+`STATUS: deployed` while disagreeing with git. It bit us testing a `wip-`
+image. One reason the chart moved under ArgoCD, which compares with git on
+every sync.
 
 **A reused tag is not immutable.** With `IfNotPresent` a node keeps serving
 the layer it cached first, so rebuilding under the same tag changes nothing —

@@ -11,8 +11,9 @@ namespace: lightwell-agents
 # re-run the ADR-0003 validation when you do.
 claudeCodeVersion: "2.1.295"
 # The runtime's own version and its output tag. Set from
-# agents.runtimeImage.version in bootstrap-infra.
-runtimeVersion: "1.1.0"
+# agents.runtimeImage.version in bootstrap-infra, the one place it lives; no
+# default here, the template refuses to render without it.
+runtimeVersion: ""
 ghVersion: "2.63.2"
 
 upstream:

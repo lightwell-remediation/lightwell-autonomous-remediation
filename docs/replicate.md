@@ -27,7 +27,7 @@ runs, 2026-10-15 to 2026-10-26: OpenShift 4.21.36, RHOAI 3.5.1.
 | [1. The application to remediate](#1-the-application-to-remediate) | Your own copy of the application, which the agent can push to | 5 min |
 | [2. Accounts and credentials](#2-accounts-and-credentials) | `secrets/secrets.env` | 15 min |
 | [3. Bootstrap the cluster](#3-bootstrap-the-cluster) | GitOps, Pipelines, RHOAI, the agent namespace and image | 15 min |
-| [4. Deploy the remediation pipeline](#4-deploy-the-remediation-pipeline) | The Tekton Pipeline and its Tasks | 5 min |
+| [4. The remediation pipeline](#4-the-remediation-pipeline) | The Tekton Pipeline and its Tasks, already deployed by step 3 | 1 min |
 | [5. Replay in the cluster](#5-replay-in-the-cluster) | The pipeline proven, no money spent | 10 min |
 | [6. A real remediation](#6-a-real-remediation) | A pull request with its evidence | 15–20 min |
 
@@ -162,31 +162,36 @@ oc get ingresses.config cluster -o jsonpath='{.spec.domain}'
 image are still coming up on their own; the whole platform is ready about ten
 minutes later (11.5 minutes in total on Field Sourced Content, 2026-10-27).
 `make validate` before then reports what is still missing rather than a broken
-install — run it again. `make deploy-all` is re-runnable. `make validate` is green when nine ArgoCD
+install — run it again. `make deploy-all` is re-runnable. `make validate` is green when ten ArgoCD
 Applications are Synced and Healthy, the DataScienceCluster is Ready, the
 runtime image is built in the internal registry, and two agent-shaped tasks
 run in parallel against MaaS. Details, presets for a cluster that already has
 RHOAI, and what is deliberately not GitOps: [deploy/README.md](../deploy/README.md).
 
-## 4. Deploy the remediation pipeline
+## 4. The remediation pipeline
+
+Step 3 already deployed it: the `agents-remediation-pipeline` Application
+reconciles the Pipeline, its Tasks and the dependency cache, like the rest of
+the platform. Check it is there:
 
 ```bash
-scripts/push-secrets.sh                 # MaaS, GitHub (+ Lightwell if set)
-helm upgrade --install remediation-pipeline \
-  deploy/gitops/deployments/agents/remediation-pipeline \
-  --namespace lightwell-agents --wait
+oc get pipelines.tekton.dev remediate -n lightwell-agents
 ```
 
-`make deploy-all` already put the Secrets in from the same file, so on a first
-install `push-secrets.sh` changes nothing. It is the command to run again
+`scripts/push-secrets.sh` (MaaS, GitHub, and Lightwell if set) is the
+command to run whenever `secrets/secrets.env` changes. `make deploy-all`
+already put the Secrets in from the same file, so on a first install it
+changes nothing. It is the command to run again
 whenever `secrets/secrets.env` changes, such as when switching path below: it
 merges what the file sets into the Secrets and leaves other keys alone.
 
-The agent runtime image is already in the cluster: step 3 built it as
-`lightwell-agent-runtime:<version>`, and the chart names that same version. A
-version is never reused, so a run always knows which runtime it ran. If the
-image is missing (a failed build), `scripts/build-runtime-image.sh` builds it.
-The chart is applied with Helm, not yet by ArgoCD, while it is still changing. Why one Task per phase:
+The agent runtime image is already in the cluster too: step 3 built it as
+`lightwell-agent-runtime:<version>`. The version is set in one place,
+`agents.runtimeImage.version` in `deploy/gitops/bootstrap-infra/values.yaml`,
+and ArgoCD hands it to both the image build and the Pipeline. A version is
+never reused, so a run always knows which runtime it ran. If the image is
+missing (a failed build), `scripts/build-runtime-image.sh` builds it. Why one
+Task per phase:
 [ADR-0009](adr/0009-tekton-pipeline-orchestration.md); the full guide:
 [orchestration.md](orchestration.md).
 

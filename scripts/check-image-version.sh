@@ -6,9 +6,10 @@
 # different images: a node that cached the first would keep serving it. Two
 # things make that true, and this checks both:
 #
-#   1. Every copy of the version agrees — bootstrap-infra (what the build
-#      publishes), the agent-runtime-image chart default, and the remediation
-#      chart (what the pipeline pulls).
+#   1. The version lives in one place, agents.runtimeImage.version in
+#      bootstrap-infra, and is well formed. bootstrap-infra hands it to both the
+#      image build and the remediation Pipeline, so neither chart may carry a
+#      version of its own.
 #   2. Against a base ref, anything that changes the image — agent-runtime/
 #      outside its tests and docs, the image chart, or a pin in bootstrap-infra
 #      — comes with a higher version.
@@ -21,8 +22,8 @@
 #
 # Exit status:
 #   0  consistent, and bumped where it had to be
-#   1  a copy disagrees, the version is malformed, or the image changed
-#      without a bump
+#   1  a chart carries its own version, the version is malformed, or the image
+#      changed without a bump
 
 set -uo pipefail
 
@@ -38,8 +39,8 @@ fail=0
 ok()  { printf '  ok    %s\n' "$1"; (( pass++ )); }
 nok() { printf '  FAIL  %s\n' "$1"; (( fail++ )); }
 
-# The three readers take the file content on stdin, so the same parsing reads
-# the working tree and the base ref.
+# The readers take the file content on stdin, so the same parsing reads the
+# working tree and the base ref.
 bootstrap_version() { awk '/^  runtimeImage:/{r=1; next} r && /^  [^ #]/{r=0} r && $1=="version:"{gsub(/"/,"",$2); print $2; exit}'; }
 chart_version()     { awk '$1=="runtimeVersion:"{gsub(/"/,"",$2); print $2; exit}'; }
 pipeline_version()  { awk '$1=="agent:" && /lightwell-agent-runtime:/{sub(/.*lightwell-agent-runtime:/,""); print; exit}'; }
@@ -69,12 +70,17 @@ if [[ "$v_bootstrap" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 else
   nok "agents.runtimeImage.version in $BOOTSTRAP is '${v_bootstrap:-missing}', expected MAJOR.MINOR.PATCH"
 fi
-[[ "$v_chart" == "$v_bootstrap" ]] \
-  && ok "agent-runtime-image chart default matches" \
-  || nok "runtimeVersion in $IMAGE_CHART/values.yaml is '${v_chart:-missing}', bootstrap says '$v_bootstrap'"
-[[ "$v_pipeline" == "$v_bootstrap" ]] \
-  && ok "remediation chart pulls the same tag" \
-  || nok "image.agent in $PIPELINE_VALUES is tagged '${v_pipeline:-missing}', bootstrap says '$v_bootstrap'"
+# A second copy is how the three used to drift apart; keep them out.
+if [[ -z "$v_chart" ]]; then
+  ok "agent-runtime-image chart carries no version of its own"
+else
+  nok "runtimeVersion in $IMAGE_CHART/values.yaml is '$v_chart'; leave it empty, bootstrap-infra sets it"
+fi
+if [[ -z "$v_pipeline" ]]; then
+  ok "remediation chart carries no image tag of its own"
+else
+  nok "image.agent in $PIPELINE_VALUES is tagged '$v_pipeline'; leave it empty, bootstrap-infra sets it"
+fi
 
 if ! git -C "$ROOT" rev-parse --verify --quiet "$BASE" >/dev/null; then
   printf '  skip  no %s to compare against, bump not checked\n' "$BASE"

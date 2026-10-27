@@ -273,7 +273,7 @@ four of them are not. The whole map, as of 2026-10-20:
 | The Inventory Is Regenerated From the Remediated Build | Yes. *Validated Before Merge* against a TPA on a separate RHDP cluster ([workaround](../../docs/workarounds.md)); the result goes in the pull request body. |
 | A Run Is Legible Without Reading Logs | **Half.** The Pipelines console shows the phase a run is in. Nothing survives it: the workspace is deleted per run and takes the phase documents with it. MLflow is deployed and unused. |
 | The Alert Is Answered | **No.** There is no trigger to answer to. |
-| What the Cluster Runs Is in Git | Nearly. Two exceptions, both recorded: the chart is a direct Helm release rather than reconciled, and the BuildConfig's branch lives only in an unmerged pull request. |
+| What the Cluster Runs Is in Git | Yes, since 2026-10-27: the remediation chart is reconciled by ArgoCD (`agents-remediation-pipeline`), and the BuildConfig's branch is `agents.runtimeImage.appRepoRef` in bootstrap-infra. Runs are not, by design. |
 
 Unmet is the normal state of a spec that is ahead of its implementation —
 that is what makes it useful. The table exists so nobody has to work out
@@ -291,7 +291,7 @@ changing.
 | The pull request is built where the credentials are | **OpenShift Pipelines**, and the **internal registry** with `BuildConfig` | In use for the agent image |
 | The inventory is regenerated and validated | **Red Hat Trusted Profile Analyzer** | Instance on a separate RHDP cluster (Milestone 1 workaround); operator 3.1.1 installed here, no instance |
 | A run is legible | **OpenShift Pipelines** console; **MLflow** (RHOAI) for session traces | Pipelines in use; MLflow `Managed`, unused |
-| What the cluster runs is in git | **OpenShift GitOps** | In use, 9 Applications |
+| What the cluster runs is in git | **OpenShift GitOps** | In use, 10 Applications, the remediation Pipeline among them since 2026-10-27 |
 | Storage for the two workspaces | **OpenShift Data Foundation** | In use — ceph-rbd and cephfs |
 | Inference | **MaaS**, served through **KServe** (RHOAI) | In use |
 

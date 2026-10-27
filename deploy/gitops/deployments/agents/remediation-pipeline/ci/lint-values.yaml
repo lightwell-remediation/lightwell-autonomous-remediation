@@ -1,0 +1,4 @@
+# Values for `helm lint` and offline rendering only. In the cluster bootstrap-infra
+# sets the image from agents.runtimeImage.version.
+image:
+  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:lint

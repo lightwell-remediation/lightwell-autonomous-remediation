@@ -39,7 +39,7 @@ spec:
       # Its own version, not the harness's: the image changes whenever our
       # layer does, and a tag that is never reused is what lets the pipeline
       # pull with IfNotPresent and still get what it asked for.
-      name: {{ .Values.images.runtime }}:{{ .Values.runtimeVersion }}
+      name: {{ .Values.images.runtime }}:{{ required "runtimeVersion is set by bootstrap-infra (agents.runtimeImage.version)" .Values.runtimeVersion }}
   resources:
     {{- toYaml .Values.resources | nindent 4 }}
   completionDeadlineSeconds: {{ .Values.completionDeadlineSeconds }}

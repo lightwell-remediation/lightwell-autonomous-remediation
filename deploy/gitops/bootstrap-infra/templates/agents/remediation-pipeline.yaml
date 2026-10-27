@@ -1,0 +1,49 @@
+{{- if and .Values.agents.enabled .Values.agents.remediationPipeline.enabled }}
+---
+# The remediation Pipeline and its Tasks. Reconciled like the rest of the
+# platform since 2026-10-27, so the runtime's version is set in one place —
+# agents.runtimeImage.version, which both the image build and this Pipeline
+# read. Runs themselves are never here: a PipelineRun under a GitOps-managed
+# path is permanent drift (scripts/run-remediation.sh creates them).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agents-remediation-pipeline
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # Wave 2, with the smoke pipeline: needs the Tekton CRDs and the agent
+    # namespace, not the image — a run pulls it when it starts.
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: {{ .Values.agents.namespace }}
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "agents/remediation-pipeline") }}
+    helm:
+      valuesObject:
+        namespace: {{ .Values.agents.namespace }}
+        image:
+          agent: {{ include "bootstrap.imageRef" (dict "ctx" . "name" "lightwell-agent-runtime") | quote }}
+        {{- with .Values.agents.remediationPipeline.values }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Tekton CRDs may not be there on the first sync.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

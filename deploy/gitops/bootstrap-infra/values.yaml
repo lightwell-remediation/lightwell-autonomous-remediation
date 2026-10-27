@@ -98,6 +98,16 @@ agents:
   # puller binding and buys nothing while both are ours.
   namespace: lightwell-agents
 
+  # The remediation Pipeline (deployments/agents/remediation-pipeline). Its
+  # image comes from runtimeImage.version below; anything else the chart takes
+  # goes under values, for example a cluster without the RHDP CephFS class:
+  #   values:
+  #     cache:
+  #       storageClass: ocs-storagecluster-cephfs
+  remediationPipeline:
+    enabled: true
+    values: {}
+
   # How many sessions have to fit at the same time. Drives the LimitRange
   # maximum and the smoke pipeline, and it is the number to change when the
   # dual agent work of Milestone 2 needs more.
@@ -124,11 +134,11 @@ agents:
   runtimeImage:
     enabled: true
     # The agent runtime's own version, and the tag the build publishes it
-    # under: lightwell-agent-runtime:<version>. The remediation chart names
-    # the same tag, so a fresh cluster runs it with no --set. Never reused:
-    # bump it whenever agent-runtime/ or a pin below changes, with the
-    # runtime-image-version skill, which keeps every copy in step
-    # (scripts/check-image-version.sh holds them to it).
+    # under: lightwell-agent-runtime:<version>. The only place it is set:
+    # this chart hands it to the image build and to the remediation Pipeline.
+    # Never reused: bump it whenever agent-runtime/ or a pin below changes,
+    # with the runtime-image-version skill (scripts/check-image-version.sh
+    # holds it to that, and keeps a second copy out of the charts).
     version: "1.1.0"
     # Pinned together with agent-runtime/build-image.sh. Bump in both places.
     claudeCodeVersion: "2.1.295"

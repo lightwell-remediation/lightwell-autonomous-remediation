@@ -2,8 +2,8 @@
 name: runtime-image-version
 description: >-
   Bump the agent runtime image version (lightwell-agent-runtime:<version>)
-  whenever what goes into the image changes, and keep every copy of the
-  version in step. Use after changing anything under agent-runtime/ (other
+  whenever what goes into the image changes. The version lives in one place,
+  agents.runtimeImage.version in deploy/gitops/bootstrap-infra/values.yaml. Use after changing anything under agent-runtime/ (other
   than tests and docs), the agent-runtime-image chart, or a runtime image pin
   in bootstrap-infra (claudeCodeVersion, ghVersion, upstreamRef); when
   scripts/check-image-version.sh fails; or when the user says "bump the image",
@@ -13,8 +13,10 @@ description: >-
 # Runtime image version
 
 The agent runtime is published as `lightwell-agent-runtime:<version>`. The
-cluster's own build produces that tag, and the remediation chart pulls it with
-`pullPolicy: IfNotPresent`. A version therefore names **one** image forever: if
+version is set in **one place**, `agents.runtimeImage.version` in
+`deploy/gitops/bootstrap-infra/values.yaml`. ArgoCD hands it to the image build,
+which publishes that tag, and to the remediation Pipeline, which pulls it with
+`pullPolicy: IfNotPresent`. Neither chart has a version of its own. A version therefore names **one** image forever: if
 the contents changed under the same tag, a node that cached the old layers would
 keep running them, and nobody could say which runtime produced a pull request.
 
@@ -47,19 +49,18 @@ the image would notice:
 ```
 Runtime image version bump:
 - [ ] 1. Decide the new version from the tables above
-- [ ] 2. Set it in all three places
+- [ ] 2. Set it in bootstrap-infra
 - [ ] 3. scripts/check-image-version.sh passes
 - [ ] 4. Note the bump in the commit message
 - [ ] 5. After merge, roll it out to running clusters
 ```
 
-### 2. The three copies
+### 2. The one place
 
-| File | Key |
-|---|---|
-| `deploy/gitops/bootstrap-infra/values.yaml` | `agents.runtimeImage.version` — what the build publishes |
-| `deploy/gitops/deployments/agents/agent-runtime-image/values.yaml` | `runtimeVersion` — the chart default, kept equal |
-| `deploy/gitops/deployments/agents/remediation-pipeline/values.yaml` | the tag at the end of `image.agent` — what the pipeline pulls |
+`agents.runtimeImage.version` in `deploy/gitops/bootstrap-infra/values.yaml`.
+Do not add a version to `agent-runtime-image/values.yaml` (`runtimeVersion`)
+or to `remediation-pipeline/values.yaml` (`image.agent`): both are left empty
+on purpose, and the check fails if either is set.
 
 ### 3. Check
 
@@ -67,8 +68,8 @@ Runtime image version bump:
 scripts/check-image-version.sh            # against origin/main
 ```
 
-It fails when a copy disagrees, when the version is not `MAJOR.MINOR.PATCH`,
-or when the image changed without a higher version. Do not open the pull
+It fails when a chart carries its own version, when the version is not
+`MAJOR.MINOR.PATCH`, or when the image changed without a higher version. Do not open the pull
 request until it passes.
 
 ### 4. Commit
@@ -79,21 +80,22 @@ X.Y.Z` right after it on the same branch. Say why in the body, in one line.
 ### 5. Roll out
 
 On a fresh cluster nothing is needed: the build publishes the new tag on its
-own. On a cluster that already ran the previous version, the BuildConfig's
-output tag changes when ArgoCD syncs the merge, but an image change trigger
-does not fire on a config change, so start the build and reinstall the chart:
+own, and ArgoCD points the Pipeline at it. On a cluster that already ran the
+previous version, ArgoCD moves both the BuildConfig's output tag and the
+Pipeline's image when it syncs the merge, but an image change trigger does not
+fire on a config change, so start the build:
 
 ```bash
 scripts/build-runtime-image.sh            # builds <version> if it is missing
-helm upgrade --install remediation-pipeline \
-  deploy/gitops/deployments/agents/remediation-pipeline \
-  --namespace lightwell-agents --wait
 ```
+
+Until it completes, a run would pull a tag that does not exist yet.
 
 ## Do not
 
 - Rebuild an existing version with different contents (`--rebuild` is for a
   build that failed, not for shipping a change)
-- Commit a `wip-` tag in `image.agent`; those come from
-  `scripts/build-runtime-image.sh --from-dir` and exist only to try a change
+- Put a `wip-` tag in a chart; those come from
+  `scripts/build-runtime-image.sh --from-dir` and are tried on one run with
+  `scripts/run-remediation.sh … --image <ref>`
 - Reuse or lower a version, even after a revert — move forward

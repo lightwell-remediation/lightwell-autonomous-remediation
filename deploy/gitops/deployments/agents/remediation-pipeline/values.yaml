@@ -3,15 +3,13 @@ namespace: lightwell-agents
 
 image:
   # The agent runtime, through the internal registry so no external pull is
-  # needed. The tag is the runtime's version (agents.runtimeImage.version in
-  # bootstrap-infra), which the cluster's own build publishes, so a fresh
-  # cluster has it without anyone running a script. Bumped with the
-  # runtime-image-version skill and never reused; scripts/check-image-version.sh
-  # fails when the two copies disagree.
-  #
-  # A `wip-` tag passed with --set means someone built a working tree with
-  # build-runtime-image.sh --from-dir to try something; never commit one here.
-  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:1.1.0
+  # needed. Set by the agents-remediation-pipeline Application in
+  # bootstrap-infra from agents.runtimeImage.version — the one place the
+  # runtime's version lives — so the chart has no default of its own and
+  # refuses to render without it. To try a wip- image from
+  # build-runtime-image.sh --from-dir, pass it to one run instead:
+  # scripts/run-remediation.sh … --image <ref>.
+  agent: ""
   # `oc` for the two tasks that talk to the Kubernetes API. The in-cluster
   # imagestream avoids needing a registry.redhat.io pull secret.
   cli: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest

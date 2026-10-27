@@ -203,6 +203,18 @@ worth keeping. So this task runs under its own service account with a Role of ex
 List-then-start is not atomic. The window is milliseconds against runs of minutes.
 Stating that is better than implying a guarantee this does not give.
 
+### The chart is reconciled by ArgoCD (2026-10-27)
+
+The remediation chart was a Helm release applied by hand while it changed
+daily. It is now the `agents-remediation-pipeline` Application of the
+app-of-apps ([ADR-0006](0006-cluster-bootstrap-topology.md)), for one concrete
+reason: as a separate release it could not see `agents.runtimeImage.version`,
+so the runtime's version was written in three places that had to agree. Now
+bootstrap-infra passes it, and the chart has no image default. A runtime
+change is tried on one run with `run-remediation.sh --image`, not by editing
+the reconciled Pipeline, and the dependency cache claim is protected with
+`Prune=false,Delete=false`.
+
 ### The record is mounted, or fetched once by the runtime (2026-10-27)
 
 The record reaches the run as a ConfigMap, or as a URL the first phase fetches

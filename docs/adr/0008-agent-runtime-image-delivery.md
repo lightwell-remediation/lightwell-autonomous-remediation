@@ -146,12 +146,15 @@ cluster the chart's default named a tag that existed nowhere, and the same
 commit was built twice.
 
 The runtime now carries a semantic version, `agents.runtimeImage.version`, and
-the second build publishes `lightwell-agent-runtime:<version>`. The remediation
-chart names the same tag, so a fresh cluster runs the image its own build
-produced with no `--set`. A version is never rebuilt with different contents —
-that is what keeps `pullPolicy: IfNotPresent` honest — and two things enforce
-it: the `runtime-image-version` skill bumps every copy when the image changes,
-and `scripts/check-image-version.sh` fails when the copies disagree or the
+the second build publishes `lightwell-agent-runtime:<version>`. It is set in
+that one place: bootstrap-infra passes it to the image chart and to the
+remediation Pipeline, an ArgoCD Application since the same day
+([ADR-0009](0009-tekton-pipeline-orchestration.md)), and neither chart has a
+default. A fresh cluster runs the image its own build produced with no
+`--set`. A version is never rebuilt with different contents — that is what
+keeps `pullPolicy: IfNotPresent` honest — and two things enforce it: the
+`runtime-image-version` skill bumps it when the image changes, and
+`scripts/check-image-version.sh` fails when a chart carries a copy or the
 image changed without a higher version.
 
 Cost: a version bump on a cluster that already ran the previous one does not

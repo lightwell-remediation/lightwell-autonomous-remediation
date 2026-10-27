@@ -312,20 +312,22 @@ one Phase 2 already built.
       existed in no fresh cluster (`ImagePullBackOff` without `--set`), and
       the same commit built twice. The runtime now has its own semantic
       version (`agents.runtimeImage.version`); the cluster's build publishes
-      `lightwell-agent-runtime:<version>` and the remediation chart names the
-      same tag, so a fresh cluster needs no script and no `--set`. A version is
-      never reused, which keeps `IfNotPresent` honest: the
-      `runtime-image-version` skill bumps every copy and
-      `scripts/check-image-version.sh` fails when they disagree or the image
-      changed without a bump ([ADR-0008](adr/0008-agent-runtime-image-delivery.md)
+      `lightwell-agent-runtime:<version>` and the remediation Pipeline, now an
+      ArgoCD Application, is handed the same tag, so a fresh cluster needs no
+      script and no `--set`. A version is never reused, which keeps
+      `IfNotPresent` honest: the `runtime-image-version` skill bumps it and
+      `scripts/check-image-version.sh` fails when a chart carries a copy or the
+      image changed without a bump ([ADR-0008](adr/0008-agent-runtime-image-delivery.md)
       amendment) (David)
 - [x] **Put the BuildConfig's branch in the chart.** The runtime ref is
       `agents.runtimeImage.appRepoRef: "main"` in
       `deploy/gitops/bootstrap-infra/values.yaml` since PR #4, so ArgoCD no
       longer resets it to the bootstrap branch (David, Roberto)
-- [ ] **Move the chart under ArgoCD** once it stops changing. Deliberately
-      applied with Helm directly for now — reconciling it while it is still
-      being iterated means a commit per change (David)
+- [x] **Move the chart under ArgoCD** (2026-10-27): the
+      `agents-remediation-pipeline` Application, so the runtime's version lives
+      in one place (`agents.runtimeImage.version`). It was applied with Helm
+      directly until then — reconciling it while it was still
+      being iterated would have meant a commit per change (David)
 - [ ] **Warm the cache before the demo.** Measured in cluster on
       2026-10-17: 48m08s cold against 11m46s warm, and 37 of those 48
       minutes were `dependency:tree`. Not bandwidth or storage — every

@@ -21,7 +21,7 @@ command -v helm >/dev/null || { echo "patch-cap-retry: helm is not installed" >&
 
 # The patch step's script: the block under `script: |` that follows
 # `- name: patch`, dedented, with the Tekton substitutions a real run fills in.
-helm template t "$CHART" --show-only templates/task-patch-and-verify.yaml \
+helm template t "$CHART" -f "$CHART/ci/lint-values.yaml" --show-only templates/task-patch-and-verify.yaml \
   | awk '
       /^ *- name: patch$/ { in_step = 1; next }
       in_step && /^ *script: \|$/ { match($0, /^ */); base = RLENGTH; grab = 1; next }

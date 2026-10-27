@@ -20,8 +20,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: lightwell-remediation
   annotations:
-    # Survives a `helm uninstall` of this chart. Re-fetching a warm cache is
-    # the single most expensive accident available here.
+    # Survives deleting the Application and is never pruned. Re-fetching a
+    # warm cache is the single most expensive accident available here. The
+    # Helm annotation is kept for anyone rendering the chart by hand.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
     helm.sh/resource-policy: keep
 spec:
   accessModes:

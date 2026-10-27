@@ -85,6 +85,14 @@ case "$osv" in
 esac
 {{- end -}}
 
+{{/*
+The agent runtime image. No default: bootstrap-infra passes it from
+agents.runtimeImage.version, the single place the version is set.
+*/}}
+{{- define "remediation.agentImage" -}}
+{{- required "image.agent is set by the agents-remediation-pipeline Application in bootstrap-infra (agents.runtimeImage.version)" .Values.image.agent -}}
+{{- end -}}
+
 {{- define "remediation.agentResources" -}}
 computeResources:
 {{ toYaml .Values.resources.agent | indent 2 }}
