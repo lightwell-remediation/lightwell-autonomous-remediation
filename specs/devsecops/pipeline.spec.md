@@ -73,6 +73,13 @@ The record is **data the run carries**, not configuration the cluster holds.
 One run remediates one record ([`vulnerability-analysis.spec.md`](../agents/vulnerability-analysis.spec.md)),
 and a cluster that holds "the current record" cannot run two.
 
+The run carries it one of two ways: the record itself, or the address of the
+record at its source. An address is resolved once, by the run, with the
+source's credentials, before any session starts — so every phase reads the
+same document and no session holds the credentials. A record can bundle
+several vulnerabilities fixed by one release (Lightwell advisories do); the run
+then also names the one it is for, and the analysis is held to it.
+
 #### Scenario: An Alert Without a Usable Record
 
 - GIVEN an alert the trigger cannot turn into a record and a repository
@@ -260,7 +267,7 @@ four of them are not. The whole map, as of 2026-10-20:
 | Requirement | Milestone 1 |
 |---|---|
 | A Run Starts From an Alert | **No.** The webhook trigger is out of scope; a run is a `PipelineRun` someone creates. The manual path is the same pipeline, which is the half that holds. |
-| The Record Travels With the Run | Yes. Mounted as a ConfigMap, named by a parameter, one record per run. |
+| The Record Travels With the Run | Yes. Mounted as a ConfigMap, or fetched once from Lightwell by the first phase (path A, since 2026-10-27); one record per run, and a `vulnerability` parameter where the record bundles several. |
 | Repeated Alerts Do Not Produce Repeated Remediations | **Half.** A second run against an application already being remediated is refused. Nothing checks for an open pull request — and with no trigger, nothing re-fires to be refused. |
 | The Pull Request Is Built Where the Credentials Already Are | Vacuously — there is no branch build. See the note on the requirement. |
 | The Inventory Is Regenerated From the Remediated Build | Yes. *Validated Before Merge* against a TPA on a separate RHDP cluster ([workaround](../../docs/workarounds.md)); the result goes in the pull request body. |

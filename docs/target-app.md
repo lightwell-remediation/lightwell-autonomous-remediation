@@ -122,7 +122,7 @@ back on: re-check after any org-level change.
 ## Running against it
 
 Nobody runs against this repository, us included: create a private copy from
-the template and point `APP_REPO` at the copy ([replicate.md — step 2](replicate.md#2-the-application-to-remediate)).
+the template and point `APP_REPO` at the copy ([replicate.md — step 1](replicate.md#1-the-application-to-remediate)).
 Ours is `lightwell-remediation/document-intake-service-demo`.
 
 - The PAT is scoped to the copy: Contents RW, Pull requests RW, Metadata R.

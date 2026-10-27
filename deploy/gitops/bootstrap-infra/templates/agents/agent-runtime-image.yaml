@@ -23,6 +23,7 @@ spec:
       valuesObject:
         namespace: {{ .Values.agents.namespace }}
         claudeCodeVersion: {{ .Values.agents.runtimeImage.claudeCodeVersion | quote }}
+        runtimeVersion: {{ .Values.agents.runtimeImage.version | quote }}
         ghVersion: {{ .Values.agents.runtimeImage.ghVersion | quote }}
         upstream:
           repo: {{ .Values.agents.runtimeImage.upstreamRepo | quote }}

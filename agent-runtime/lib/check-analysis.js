@@ -2,6 +2,8 @@
 // check-analysis.js — turn an analysis document into an exit status.
 //
 // Usage: check-analysis.js <analysis.json>
+//        EXPECTED_VULNERABILITY=<id> holds the analysis to the vulnerability the
+//        run named, for a record that bundles several
 // Exit:  0 the analysis concluded: either there is something to remediate, or
 //          there is demonstrably nothing to do
 //        1 the analysis could not conclude, or produced no usable document
@@ -86,6 +88,19 @@ if (state === "remediable" && !analysis.remediating_version) {
   fail(
     "analysis reported 'remediable' without a remediating version — the two cannot both be true"
   );
+}
+
+// A record can bundle several vulnerabilities fixed by one release. The run
+// names the one it is for, and an analysis of a sibling would send the exploit
+// phase after a defect nobody asked about — every later gate would still pass.
+const expected = (process.env.EXPECTED_VULNERABILITY || "").trim();
+if (expected) {
+  const id = String((analysis.vulnerability && analysis.vulnerability.id) || "");
+  if (!id.toUpperCase().includes(expected.toUpperCase())) {
+    fail(
+      `analysis is about ${JSON.stringify(id || null)}, but the run is for ${expected}`
+    );
+  }
 }
 
 process.exit(0);

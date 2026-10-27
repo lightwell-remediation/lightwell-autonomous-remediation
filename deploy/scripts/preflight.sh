@@ -82,6 +82,20 @@ else
   fail "no default StorageClass. MLflow and the Tekton workspaces both need PVCs"
 fi
 
+# The dependency cache is the one claim that names a class, because it needs
+# ReadWriteMany and a default RBD class cannot provide it. Read from the chart
+# so there is one place it is set. Not a hard failure: the class is a value,
+# and the remediation chart is installed later, with --set if need be.
+CACHE_VALUES="$SCRIPT_DIR/../gitops/deployments/agents/remediation-pipeline/values.yaml"
+CACHE_SC="$(awk '/^cache:/{c=1; next} c && /^[^ #]/{c=0} c && $1=="storageClass:"{gsub(/"/,"",$2); print $2; exit}' "$CACHE_VALUES" 2>/dev/null)"
+if [[ -z "$CACHE_SC" ]]; then
+  log_ok "dependency cache: default StorageClass ($DEFAULT_SC), make sure it can do ReadWriteMany"
+elif oc get sc "$CACHE_SC" >/dev/null 2>&1; then
+  log_ok "dependency cache StorageClass: $CACHE_SC"
+else
+  log_skip "dependency cache StorageClass $CACHE_SC does not exist here; install the remediation chart with --set cache.storageClass=<an RWX class> (deploy/README.md — Capacity)"
+fi
+
 log_step "Operator channels"
 check_channel() {
   local pkg="$1" want="$2" label="$3"
@@ -119,9 +133,15 @@ fi
 oc get crd tektonconfigs.operator.tekton.dev >/dev/null 2>&1 \
   && log_skip "OpenShift Pipelines is already installed, the Subscription will adopt it" \
   || log_ok "no Tekton, this bootstrap installs it"
-oc get crd argocds.argoproj.io >/dev/null 2>&1 \
-  && log_skip "OpenShift GitOps is already installed, make gitops only patches it" \
-  || log_ok "no GitOps operator, run make gitops first"
+GITOPS_SUB="$(oc get subscriptions.operators.coreos.com -A \
+  -o jsonpath='{range .items[?(@.spec.name=="openshift-gitops-operator")]}{.metadata.namespace}{"/"}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -1)"
+if [[ -n "$GITOPS_SUB" ]]; then
+  log_skip "OpenShift GitOps is already installed ($GITOPS_SUB); make gitops leaves the operator alone and only adds to the ArgoCD instance"
+elif oc get crd argocds.argoproj.io >/dev/null 2>&1; then
+  log_skip "an ArgoCD CRD exists but no openshift-gitops-operator Subscription; make gitops would install a second operator, check first"
+else
+  log_ok "no GitOps operator, make gitops installs it"
+fi
 
 log_step "Capacity"
 # Rough: the platform plus two parallel sessions plus a build needs around

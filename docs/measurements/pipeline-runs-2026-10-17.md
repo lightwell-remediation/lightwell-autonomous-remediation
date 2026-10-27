@@ -8,7 +8,7 @@ Lightwell record for CVE-2026-68079, model `claude-sonnet-4-6`.
 |---|---|---|
 | Run | `remediate-6brkh` | `remediate-4v4xq` |
 | Wall clock | **48m08s** | **11m46s** |
-| Outcome | delivered, [PR #9](https://github.com/lightwell-remediation/lw-apache-cxf-demo/pull/9) | delivered, [PR #10](https://github.com/lightwell-remediation/lw-apache-cxf-demo/pull/10) |
+| Outcome | delivered, PR #9 (private demo repository) | delivered, PR #10 (private demo repository) |
 | Patching attempts | 2 | 2 |
 
 ## Where the warm run's time goes

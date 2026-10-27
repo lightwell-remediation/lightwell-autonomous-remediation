@@ -68,6 +68,23 @@ volumeMounts:
   default: {{ .Values.cache.claimName | quote }}
 {{- end -}}
 
+{{/*
+The vulnerability record a phase hands the runtime, as $osv.
+
+A URL is fetched by the first phase that needs one, into the run's workspace
+(run-agent.sh, "Task input"). Every later phase reads that copy, so a run makes
+one request to Lightwell rather than one per phase, and every phase works from
+the same document even if the source changes mid-run. The workspace is per run,
+so the first phase never finds a stale copy there.
+*/}}
+{{- define "remediation.record" -}}
+osv="$(params.osv)"
+case "$osv" in
+  http://*|https://*)
+    [ -r "$WORKSPACE/input/osv.json" ] && osv="$WORKSPACE/input/osv.json" ;;
+esac
+{{- end -}}
+
 {{- define "remediation.agentResources" -}}
 computeResources:
 {{ toYaml .Values.resources.agent | indent 2 }}

@@ -124,9 +124,10 @@ if [[ -n "${LW_USERNAME:-}" && -n "${LW_PASSWORD:-}" && -n "${LW_MAVEN_REPO_URL:
   apply_secret lightwell-lightwell \
     --from-literal="LW_USERNAME=$LW_USERNAME" \
     --from-literal="LW_PASSWORD=$LW_PASSWORD" \
-    --from-literal="LW_MAVEN_REPO_URL=$LW_MAVEN_REPO_URL"
+    --from-literal="LW_MAVEN_REPO_URL=$LW_MAVEN_REPO_URL" \
+    ${LW_OSV_BASE_URL:+--from-literal="LW_OSV_BASE_URL=$LW_OSV_BASE_URL"}
 else
-  log_skip "no Lightwell credentials yet, skipping lightwell-lightwell (Phase 3 needs it)"
+  log_skip "no Lightwell credentials, skipping lightwell-lightwell (fine on path B)"
 fi
 
 echo

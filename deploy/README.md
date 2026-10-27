@@ -146,6 +146,16 @@ requests before, 20.5 CPU and 51.7 GiB after, so the whole bootstrap costs about
 16 CPU and 48 GiB of allocatable capacity is the floor, 32 and 128 is
 comfortable. The validation cluster is a single node with 32 and 124.
 
+Storage: a default StorageClass, and an image registry that is Managed with
+storage behind it. The dependency cache asks for ReadWriteMany on
+`ocs-external-storagecluster-cephfs`, the CephFS class of an RHDP cluster; the
+default RBD class cannot do RWX. `make preflight` checks all three. Elsewhere
+point the remediation chart at your RWX class
+(`--set cache.storageClass=<class>`). `--set cache.accessMode=ReadWriteOnce`
+also works on a single node, where every pod shares the node the volume is
+attached to; on several nodes, a run scheduled on another node waits in
+`ContainerCreating` (Multi-Attach) until the volume is free.
+
 Two sessions at a time is a documented budget, not a hard cap. The namespace
 has a LimitRange with defaults and a ceiling, and no ResourceQuota: a quota that
 fails a build at the wrong moment is worse than an over-subscribed node. Change
@@ -194,7 +204,7 @@ what the next step needs, and `make validate` is where you look.
 make status                 # applications and the agent namespace
 make argocd                 # URL, user and password
 make lint && make template  # no cluster needed, what CI runs
-make build-image FORCE=1    # rebuild after bumping claudeCodeVersion
+make build-image FORCE=1    # rebuild after bumping a pin (and the runtime version)
 make clean-runs             # delete old PipelineRuns and their PVCs
 make undeploy               # remove the app of apps, keep the operators
 ```

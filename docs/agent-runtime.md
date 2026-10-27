@@ -228,10 +228,17 @@ the same prompt runs unchanged on a workstation and in a pod.
 
 ### Task inputs
 
-`--osv` accepts a path or a URL. A URL is fetched **by the runtime**, with
-`LW_USERNAME`/`LW_PASSWORD`, before the session exists — the same arrangement as
-the repository clone: the launcher authenticates, the agent only ever sees a
-file. This is what lets the allowlist keep denying outbound HTTP to the session.
+`--osv` accepts a path or a URL. A URL is fetched **by the runtime** before the
+session exists — the same arrangement as the repository clone: the launcher
+authenticates, the agent only ever sees a file. This is what lets the allowlist
+keep denying outbound HTTP to the session. `LW_USERNAME`/`LW_PASSWORD` are sent
+only when the URL's host is the Lightwell one (`LW_OSV_BASE_URL`, or failing
+that `LW_MAVEN_REPO_URL`); a public registry such as osv.dev never receives
+them.
+
+`--vulnerability <id>` names the vulnerability the run is for when the record
+bundles several, as Lightwell advisories do. The analysis gate refuses an
+analysis of any other.
 
 Inputs are validated before launch. An unreadable or malformed record is exit 2,
 not a session that spends turns finding out.

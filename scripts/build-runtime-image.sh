@@ -1,28 +1,32 @@
 #!/usr/bin/env bash
-# build-runtime-image.sh — build the agent runtime in the cluster, at a tag
-# that names what was built.
+# build-runtime-image.sh — make sure the agent runtime image exists in the
+# cluster, at the tag the remediation chart names.
 #
-# The BuildConfig writes to a fixed tag and overwrites it on every build, so
-# pinning that tag only looks like pinning: with the default IfNotPresent a
-# node keeps serving the layer it cached first and a rebuild changes nothing.
-# This tags the result `<ref>-<short-sha>` as well, which is a name that is
-# never reused, and prints the values override that points the chart at it.
+# The runtime is versioned (agents.runtimeImage.version in bootstrap-infra),
+# and the BuildConfig publishes it as lightwell-agent-runtime:<version>. The
+# cluster builds it on its own once the base image exists, so on a fresh
+# cluster this script usually finds the image already there and does nothing.
+# It is for the cases where it is not: a version bump on a cluster that already
+# ran the previous one (an image change trigger does not fire on a config
+# change), or a build that failed.
 #
-# The BuildConfig is also pinned to a branch that is not main, so the ref has
-# to be passed on every build rather than configured once.
+# A version is never rebuilt with different contents: the chart pulls with
+# IfNotPresent, so a node that cached the old layers would keep serving them.
+# Change agent-runtime/ → bump the version (runtime-image-version skill).
 #
 # Usage:
-#   build-runtime-image.sh [<git-ref>]      build a pushed ref, default main
-#   build-runtime-image.sh --from-dir       build the working tree as it is
+#   build-runtime-image.sh               build the version if it is missing
+#   build-runtime-image.sh --rebuild     build it again from the BuildConfig's ref
+#   build-runtime-image.sh --from-dir    build the working tree as wip-<version>-<time>
 #
-# --from-dir uploads the local directory as the build context, so a runtime
-# change can be exercised in the cluster before it is pushed anywhere. Its
-# tag carries a timestamp, because a working tree is not content-addressed
-# and the tag's only job is to never be reused.
+# --from-dir uploads agent-runtime/ as the build context, so a runtime change
+# can be exercised in the cluster before it is pushed anywhere. It builds
+# through a temporary BuildConfig whose output is the wip- tag, so the version
+# tag is never touched, and prints the --set line that points the chart at it.
 #
 # Exit status:
-#   0  the build completed and the immutable tag points at it
-#   1  the build failed, or the tag could not be created
+#   0  the image is in the cluster at the expected tag
+#   1  the build failed, or the tag could not be read
 #   2  configuration error
 
 set -uo pipefail
@@ -30,22 +34,59 @@ set -uo pipefail
 readonly NAMESPACE="${NAMESPACE:-lightwell-agents}"
 readonly BUILD_CONFIG="${BUILD_CONFIG:-lightwell-agent-runtime}"
 readonly IMAGE_STREAM="${IMAGE_STREAM:-lightwell-agent-runtime}"
-readonly REF="${1:-main}"
+readonly REGISTRY="image-registry.openshift-image-registry.svc:5000/$NAMESPACE/$IMAGE_STREAM"
 
 die() { printf 'build-runtime-image: %s\n' "$*" >&2; exit 2; }
 log() { printf 'build-runtime-image: %s\n' "$*" >&2; }
 
+MODE="ensure"
+case "${1:-}" in
+  "")          ;;
+  --rebuild)   MODE="rebuild" ;;
+  --from-dir)  MODE="from-dir" ;;
+  # The previous interface built a ref into a <ref>-<sha> tag. A version tag
+  # comes from the BuildConfig's own ref, so the argument has nothing to do.
+  main)        log "the ref argument is gone: the BuildConfig builds main into the version tag" ;;
+  -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
+  *)           die "unknown argument: $1 (see --help)" ;;
+esac
+
 command -v oc >/dev/null || die "oc is not installed"
 oc whoami >/dev/null 2>&1 || die "not logged in to a cluster"
 
-repository="$(oc get bc "$BUILD_CONFIG" -n "$NAMESPACE" \
-  -o jsonpath='{.spec.source.git.uri}' 2>/dev/null)"
-[ -n "$repository" ] || die "no BuildConfig $BUILD_CONFIG in $NAMESPACE"
+output="$(oc get bc "$BUILD_CONFIG" -n "$NAMESPACE" \
+  -o jsonpath='{.spec.output.to.name}' 2>/dev/null)"
+[ -n "$output" ] || die "no BuildConfig $BUILD_CONFIG in $NAMESPACE — make deploy-all first"
+readonly VERSION="${output##*:}"
 
-if [ "$REF" = "--from-dir" ]; then
+digest_of() {
+  oc get istag "$IMAGE_STREAM:$1" -n "$NAMESPACE" \
+    -o jsonpath='{.image.metadata.name}' 2>/dev/null
+}
+
+# Waits for a build to finish and prints its phase. Polled rather than
+# followed: `oc logs -f` on a build still Pending can return at once.
+wait_build() {
+  local phase="" waited=0
+  while [ "$waited" -lt 3600 ]; do
+    phase="$(oc get -n "$NAMESPACE" "$1" -o jsonpath='{.status.phase}' 2>/dev/null)"
+    case "$phase" in Complete|Failed|Error|Cancelled) break ;; esac
+    sleep 10; waited=$(( waited + 10 ))
+  done
+  printf '%s' "$phase"
+}
+
+follow_failed() {
+  log "the build failed; its log:"
+  oc logs -n "$NAMESPACE" "$1" --tail=40 >&2 2>/dev/null
+  exit 1
+}
+
+if [ "$MODE" = "from-dir" ]; then
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   short="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-  readonly TAG="wip-$short-$(date +%H%M%S)"
+  TAG="wip-$VERSION-$(date +%H%M%S)"
+  readonly TAG
 
   # A context containing only what the Containerfile copies, rather than the
   # repository. `oc start-build --from-dir` tars the whole directory and does
@@ -54,60 +95,71 @@ if [ "$REF" = "--from-dir" ]; then
   # error that reads like a cluster problem. Building from exactly the inputs
   # also means a stray local file cannot change what ships.
   context="$(mktemp -d)"
-  trap 'rm -rf "$context"' EXIT
+  tmp_bc="$BUILD_CONFIG-wip"
+  trap 'rm -rf "$context"; oc delete bc "$tmp_bc" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1' EXIT
   mkdir -p "$context/agent-runtime"
   cp -r "$root/agent-runtime/." "$context/agent-runtime/" \
     || die "cannot assemble the build context"
   rm -rf "$context/agent-runtime/test"
 
-  log "building the working tree at $root (HEAD $short)"
+  # The real BuildConfig with its output moved to the wip- tag and its
+  # triggers removed: same base, same build arguments, and the version tag is
+  # out of reach.
+  oc get bc "$BUILD_CONFIG" -n "$NAMESPACE" -o json 2>/dev/null \
+    | python3 -I -c '
+import json, sys
+bc = json.load(sys.stdin)
+name, tag = sys.argv[1], sys.argv[2]
+meta = bc["metadata"]
+bc["metadata"] = {"name": name, "namespace": meta["namespace"], "labels": meta.get("labels", {})}
+bc["spec"]["output"]["to"]["name"] = tag
+bc["spec"]["triggers"] = []
+bc.pop("status", None)
+print(json.dumps(bc))
+' "$tmp_bc" "$IMAGE_STREAM:$TAG" \
+    | oc apply -n "$NAMESPACE" -f - >/dev/null \
+    || die "cannot create the temporary BuildConfig $tmp_bc"
+
+  log "building the working tree at $root (HEAD $short) as $TAG"
   # stderr kept: an upload failure has nothing to do with the build, and
   # swallowing it leaves you reading the *previous* build's log and
   # concluding the image did not change.
-  oc start-build "$BUILD_CONFIG" -n "$NAMESPACE" --from-dir="$context" --follow >/dev/null
-  built=$?
+  build="$(oc start-build "$tmp_bc" -n "$NAMESPACE" --from-dir="$context" -o name)" \
+    || die "could not start the build"
+  [ "$(wait_build "$build")" = "Complete" ] || follow_failed "$build"
+
+  digest="$(digest_of "$TAG")"
+  [ -n "$digest" ] || { log "could not read the built image's digest"; exit 1; }
+  printf '\n  built    working tree at %s\n  digest   %s\n  tag      %s:%s\n\n' \
+    "$short" "$digest" "$IMAGE_STREAM" "$TAG" >&2
+  printf 'Point the chart at it, to try it (never commit a wip- tag):\n' >&2
+  printf '  helm upgrade --install remediation-pipeline \\\n' >&2
+  printf '    deploy/gitops/deployments/agents/remediation-pipeline \\\n' >&2
+  printf '    --namespace %s --set image.agent=%s:%s\n' "$NAMESPACE" "$REGISTRY" "$TAG" >&2
+  exit 0
+fi
+
+if [ "$MODE" = "ensure" ] && [ -n "$(digest_of "$VERSION")" ]; then
+  log "$IMAGE_STREAM:$VERSION is already built — nothing to do"
+  log "the remediation chart's default points at it; no --set needed"
+  exit 0
+fi
+
+# A build the cluster started on its own may still be running; follow it
+# rather than starting a second build of the same thing.
+running="$(oc get builds -n "$NAMESPACE" -l "buildconfig=$BUILD_CONFIG" \
+  -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -1)"
+if [ "$MODE" = "ensure" ] && [ -n "$running" ]; then
+  log "following $running, already building $VERSION"
+  build="build/$running"
 else
-  # Resolve the ref to a commit here rather than trusting the branch to stay
-  # put: the tag has to name a specific tree, not whatever main was when
-  # someone read this.
-  sha="$(git ls-remote "$repository" "refs/heads/$REF" 2>/dev/null | cut -f1)"
-  [ -n "$sha" ] || die "cannot resolve $REF in $repository"
-  short="${sha:0:7}"
-  readonly TAG="$REF-$short"
-
-  log "building $REF at $short"
-  oc start-build "$BUILD_CONFIG" -n "$NAMESPACE" --commit="$sha" --follow >/dev/null 2>&1
-  built=$?
+  log "building $IMAGE_STREAM:$VERSION from the BuildConfig's ref"
+  build="$(oc start-build "$BUILD_CONFIG" -n "$NAMESPACE" -o name)" \
+    || die "could not start the build"
 fi
+[ "$(wait_build "$build")" = "Complete" ] || follow_failed "$build"
 
-if [ "$built" -ne 0 ]; then
-  log "the build failed; last build's logs:"
-  oc logs -n "$NAMESPACE" "bc/$BUILD_CONFIG" --tail=40 >&2 2>/dev/null
-  exit 1
-fi
-
-# The BuildConfig's output tag, whatever it is called, now points at what was
-# just built. Read the digest from it and give that digest a name of its own.
-output="$(oc get bc "$BUILD_CONFIG" -n "$NAMESPACE" \
-  -o jsonpath='{.spec.output.to.name}' 2>/dev/null)"
-output_tag="${output##*:}"
-
-digest="$(oc get istag "$IMAGE_STREAM:$output_tag" -n "$NAMESPACE" \
-  -o jsonpath='{.image.metadata.name}' 2>/dev/null)"
+digest="$(digest_of "$VERSION")"
 [ -n "$digest" ] || { log "could not read the built image's digest"; exit 1; }
-
-oc tag "$NAMESPACE/$IMAGE_STREAM@$digest" "$NAMESPACE/$IMAGE_STREAM:$TAG" >/dev/null 2>&1 \
-  || { log "could not create the tag $TAG"; exit 1; }
-
-registry="image-registry.openshift-image-registry.svc:5000/$NAMESPACE/$IMAGE_STREAM"
-
-printf '\n'
-printf '  built    %s at %s\n' "$REF" "$short" >&2
-printf '  digest   %s\n' "$digest" >&2
-printf '  tag      %s:%s\n' "$IMAGE_STREAM" "$TAG" >&2
-printf '\n' >&2
-printf 'Point the chart at it:\n' >&2
-printf '  helm upgrade --install remediation-pipeline \\\n' >&2
-printf '    deploy/gitops/deployments/agents/remediation-pipeline \\\n' >&2
-printf '    --namespace %s --set image.agent=%s:%s\n' "$NAMESPACE" "$registry" "$TAG" >&2
-printf '\nOr set it in values.yaml:\n  %s:%s\n' "$registry" "$TAG" >&2
+printf '\n  built    %s:%s\n  digest   %s\n' "$IMAGE_STREAM" "$VERSION" "$digest" >&2
+printf '\nThe remediation chart already points at it; no --set needed.\n' >&2

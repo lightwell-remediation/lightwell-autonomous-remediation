@@ -123,6 +123,13 @@ agents:
   # See ADR-0008.
   runtimeImage:
     enabled: true
+    # The agent runtime's own version, and the tag the build publishes it
+    # under: lightwell-agent-runtime:<version>. The remediation chart names
+    # the same tag, so a fresh cluster runs it with no --set. Never reused:
+    # bump it whenever agent-runtime/ or a pin below changes, with the
+    # runtime-image-version skill, which keeps every copy in step
+    # (scripts/check-image-version.sh holds them to it).
+    version: "1.0.0"
     # Pinned together with agent-runtime/build-image.sh. Bump in both places.
     claudeCodeVersion: "2.1.295"
     ghVersion: "2.63.2"

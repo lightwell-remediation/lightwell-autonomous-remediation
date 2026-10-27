@@ -3,20 +3,19 @@ namespace: lightwell-agents
 
 image:
   # The agent runtime, through the internal registry so no external pull is
-  # needed. The tag names the commit on main it was built from and is never
-  # reused — `scripts/build-runtime-image.sh main` creates it. The
-  # BuildConfig's own output tag is overwritten on every build and must not
-  # be referenced here: it would make a run depend on whenever someone last
-  # pressed build.
+  # needed. The tag is the runtime's version (agents.runtimeImage.version in
+  # bootstrap-infra), which the cluster's own build publishes, so a fresh
+  # cluster has it without anyone running a script. Bumped with the
+  # runtime-image-version skill and never reused; scripts/check-image-version.sh
+  # fails when the two copies disagree.
   #
-  # A `wip-` tag here means someone built from a working tree to try
-  # something; it must go back to a main- tag before the branch merges, or
-  # the chart points at an image no commit produced.
-  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:main-9768e2d
+  # A `wip-` tag passed with --set means someone built a working tree with
+  # build-runtime-image.sh --from-dir to try something; never commit one here.
+  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:1.0.0
   # `oc` for the two tasks that talk to the Kubernetes API. The in-cluster
   # imagestream avoids needing a registry.redhat.io pull secret.
   cli: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-  # IfNotPresent is safe now that the tag above names a commit and is never
+  # IfNotPresent is safe because the tag above is a version that is never
   # reused. It was Always while the chart referenced the BuildConfig's own
   # output tag, which the build overwrites — and with IfNotPresent the node
   # went on serving the layer it had cached first, so a rebuild changed
@@ -53,7 +52,14 @@ cache:
   # be concurrent and would otherwise serialise on the volume
   # (orchestration-strategy.spec.md — Two Lifetimes, Two Volumes).
   claimName: lightwell-maven-cache
+  # Needs ReadWriteMany, which the RBD default class on RHDP cannot do. This
+  # is the CephFS class every RHDP OpenShift cluster backed by external ODF
+  # has, including Field Sourced Content on CNV. Elsewhere set your RWX class
+  # (internal ODF: ocs-storagecluster-cephfs), or "" for the default class.
   storageClass: ocs-external-storagecluster-cephfs
+  # ReadWriteOnce works where no class offers RWX, at the cost of runs
+  # against different applications queuing on the volume.
+  accessMode: ReadWriteMany
   size: 20Gi
 
 agent:

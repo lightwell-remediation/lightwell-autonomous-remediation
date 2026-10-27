@@ -39,9 +39,19 @@ require_cluster
 echo
 
 log_step "ArgoCD applications"
+# Only the ones this bootstrap created. A cluster that came with GitOps, such
+# as the RHDP Field Sourced Content item, has Applications of its own in the
+# same namespace, and their state is not ours to judge.
+RELEASE="${RELEASE:-lightwell-bootstrap}"
 if oc get applications.argoproj.io -n openshift-gitops >/dev/null 2>&1; then
-  while read -r name sync health op; do
+  ours=0
+  while IFS='|' read -r name sync health op release; do
     [[ -z "$name" ]] && continue
+    if [[ "$release" != "$RELEASE" ]]; then
+      log_skip "$name is not part of $RELEASE, not judged"
+      continue
+    fi
+    ours=$(( ours + 1 ))
     if [[ "$sync" != "Synced" || "$health" != "Healthy" ]]; then
       fail "$name is $sync / $health"
       continue
@@ -74,7 +84,8 @@ if oc get applications.argoproj.io -n openshift-gitops >/dev/null 2>&1; then
           | sed 's/^/        /' | head -2 ;;
     esac
   done < <(oc get applications.argoproj.io -n openshift-gitops \
-             -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.sync.status}{" "}{.status.health.status}{" "}{.status.operationState.phase}{"\n"}{end}' 2>/dev/null)
+             -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.status.sync.status}{"|"}{.status.health.status}{"|"}{.status.operationState.phase}{"|"}{.metadata.annotations.meta\.helm\.sh/release-name}{"\n"}{end}' 2>/dev/null)
+  (( ours > 0 )) || fail "no Applications from release $RELEASE, run make deploy first"
 else
   fail "no ArgoCD Applications, run make gitops and make deploy first"
 fi
@@ -96,8 +107,19 @@ check_csv() {
   phase="$(oc get csv "$name" -n "$ns" -o jsonpath='{.status.phase}' 2>/dev/null)"
   [[ "$phase" == "Succeeded" ]] && log_ok "$label: $name" || fail "$label: $name is $phase"
 }
-check_csv openshift-gitops-operator gitops   "OpenShift GitOps"
+# Wherever it was installed: by make gitops, or by the catalog item.
+GITOPS_NS="$(oc get subscriptions.operators.coreos.com -A \
+  -o jsonpath='{range .items[?(@.spec.name=="openshift-gitops-operator")]}{.metadata.namespace}{"\n"}{end}' 2>/dev/null | head -1)"
+check_csv "${GITOPS_NS:-openshift-gitops-operator}" gitops "OpenShift GitOps"
 check_csv openshift-operators       pipelines "OpenShift Pipelines"
+# The Pipelines entry in the web console, which is where a run is watched.
+# Enabled by a PostSync Job in platform-openshift-pipelines.
+if oc get consoles.operator.openshift.io cluster -o jsonpath='{.spec.plugins}' 2>/dev/null \
+     | grep -q '"pipelines-console-plugin"'; then
+  log_ok "Pipelines console plugin enabled"
+else
+  fail "Pipelines console plugin not enabled — see the pipelines-console-plugin-enabler Job in openshift-operators"
+fi
 if oc get ns redhat-ods-operator >/dev/null 2>&1; then
   check_csv redhat-ods-operator rhods "OpenShift AI"
 else
@@ -163,7 +185,7 @@ for s in lightwell-maas lightwell-github; do
 done
 oc get secret lightwell-lightwell -n "$NAMESPACE" >/dev/null 2>&1 \
   && log_ok "secret lightwell-lightwell" \
-  || log_skip "no secret lightwell-lightwell, Phase 3 will need it"
+  || log_skip "no secret lightwell-lightwell: fine on path B, path A needs it (docs/replicate.md)"
 
 log_step "Runtime image"
 TAG="$(oc get buildconfig lightwell-agent-runtime -n "$NAMESPACE" -o jsonpath='{.spec.output.to.name}' 2>/dev/null)"

@@ -142,6 +142,7 @@ Project-level skills live in `.agents/skills/` (read natively by Codex and Curso
 | `sync-repo-docs` | Audit/sync README, AGENTS.md, ROADMAP with actual repo layout |
 | `helm-create` | Create or modify Helm charts following OCP best practices |
 | `spec` | Create or modify behavior specs (`specs/`) -- desired system state as living contracts |
+| `runtime-image-version` | Bump the agent runtime image version after changing `agent-runtime/` or an image pin |
 
 ## Project Structure
 

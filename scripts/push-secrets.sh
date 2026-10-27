@@ -8,8 +8,8 @@
 #
 #   lightwell-maas       MAAS_BASE_URL, MAAS_API_KEY, MAAS_MODEL, MAAS_SMALL_MODEL
 #   lightwell-github     APP_REPO, GITHUB_TOKEN, GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL
-#   lightwell-lightwell  LW_USERNAME, LW_PASSWORD, LW_MAVEN_REPO_URL
-#                        (optional — skipped when all three are empty)
+#   lightwell-lightwell  LW_USERNAME, LW_PASSWORD, LW_MAVEN_REPO_URL,
+#                        LW_OSV_BASE_URL (optional — skipped when all are empty)
 #   lightwell-tpa        TPA_URL, TPA_TOKEN_URL, TPA_CLIENT_ID, TPA_CLIENT_SECRET
 #                        (optional — skipped when all four are empty)
 #
@@ -59,7 +59,7 @@ set +a
 readonly SECRET_SETS=(
   "maas|MAAS_BASE_URL MAAS_API_KEY MAAS_MODEL ?MAAS_SMALL_MODEL"
   "github|APP_REPO GITHUB_TOKEN GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL"
-  "?lightwell|LW_USERNAME LW_PASSWORD LW_MAVEN_REPO_URL"
+  "?lightwell|LW_USERNAME LW_PASSWORD LW_MAVEN_REPO_URL ?LW_OSV_BASE_URL"
   "?tpa|TPA_URL TPA_TOKEN_URL TPA_CLIENT_ID TPA_CLIENT_SECRET"
 )
 

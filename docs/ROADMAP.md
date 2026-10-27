@@ -306,18 +306,19 @@ fit its slot. They sat in Phase 3 until the DevSecOps scope was cut on
 2026-10-20; none of them is pipeline work, and the pipeline they apply to is the
 one Phase 2 already built.
 
-- [ ] **The image tag costs a second commit, and that is the monorepo.**
-      The runtime and the chart that references it share a repository, so a
-      tag naming a commit cannot exist until the code is on `main` — which
-      means merge, build, then a second commit moving `values.yaml` to the
-      new tag. It is a known cost, accepted for now, and it does not chase
-      its own tail: the tag commit touches only `values.yaml`, which is not
-      in the build context (`.dockerignore` excludes `deploy/`, and
-      `--from-dir` packages `agent-runtime/` alone), so the image for
-      `main-<sha>` is identical to the one the follow-up commit would
-      produce and no rebuild follows. What would remove the step is building
-      on merge and letting the tag be the merge commit, or referencing the
-      digest the build writes — both are work, neither is urgent (David)
+- [x] **Version the runtime image** (2026-10-27). The tag used to name a
+      commit (`main-<sha>`), which cost a second commit per change, a tag that
+      only `scripts/build-runtime-image.sh` created, a chart default that
+      existed in no fresh cluster (`ImagePullBackOff` without `--set`), and
+      the same commit built twice. The runtime now has its own semantic
+      version (`agents.runtimeImage.version`); the cluster's build publishes
+      `lightwell-agent-runtime:<version>` and the remediation chart names the
+      same tag, so a fresh cluster needs no script and no `--set`. A version is
+      never reused, which keeps `IfNotPresent` honest: the
+      `runtime-image-version` skill bumps every copy and
+      `scripts/check-image-version.sh` fails when they disagree or the image
+      changed without a bump ([ADR-0008](adr/0008-agent-runtime-image-delivery.md)
+      amendment) (David)
 - [x] **Put the BuildConfig's branch in the chart.** The runtime ref is
       `agents.runtimeImage.appRepoRef: "main"` in
       `deploy/gitops/bootstrap-infra/values.yaml` since PR #4, so ArgoCD no
@@ -580,8 +581,9 @@ Tasks:
       timeouts do not match what they promise; `setup-secrets.sh` builds an
       unmatchable repo credential from an SSH clone and does not validate
       `APP_REPO`; the `lightwell-lightwell` Secret (`LW_USERNAME` / `LW_PASSWORD`)
-      is not created by `make secrets`; the Pipelines and GitOps console plugins
-      are not enabled by the chart (see Phase 0.5); smaller doc and value drift
+      is not created by `make secrets`; the GitOps console plugin is not enabled
+      by the chart (the Pipelines one is since 2026-10-27, a PostSync Job in
+      `platform/openshift-pipelines`); smaller doc and value drift
       (Application count in the skill, "four Secrets", dead `serviceAccount`
       value, preflight CPU off-by-one) (Roberto)
 - [ ] Extend the Phase 0.5 RHOAI 3.x install with the components Milestone 2 needs.
@@ -598,10 +600,12 @@ Tasks:
       Lightwell repositories from inside it
 - [ ] Deploy EvalHub for automated evaluation
 - [ ] NeMo Guardrails via TrustyAI (optional)
-- [ ] **TPA on the pipeline's cluster**, with the Lightwell integration and
-      OSV records loaded, replacing the Milestone 1 instance on a separate
-      cluster. Configuration only — repoint the `TPA_*` values and register
-      the baseline again ([workarounds](workarounds.md))
+- [ ] **Install TPA in the pipeline's cluster**, as part of the GitOps
+      bootstrap, with the Lightwell integration and OSV records loaded,
+      replacing the Milestone 1 instance on a separate cluster. Then repoint
+      the `TPA_*` values and register the baseline again
+      ([workarounds](workarounds.md)). A Milestone 1 limitation stated in
+      [replicate.md](replicate.md#limitations-of-milestone-1)
 
 ### Phase 6: Multi-Agent Engine (dual-agent + LLM-as-a-Judge)
 
@@ -688,7 +692,7 @@ Tasks:
 
 - ~~Which CVE and vulnerable library to use for the demo?~~ → four CVEs in
   `org.apache.cxf:cxf-rt-rs-security-oauth2:4.2.2`, remediated by a Lightwell
-  rebuild ([sample app README](https://github.com/lightwell-remediation/lw-apache-cxf-sample)).
+  rebuild (the private sample app's README).
   Still open is **reachability**: all four sit in the CXF authorization server
   (`JCacheCodeDataProvider`, `JwtRequestCodeFilter`, `DefaultEncryptingCodeDataProvider`,
   `DefaultEncryptingOAuthDataProvider`), and the sample is a pure resource server —
@@ -713,8 +717,10 @@ Tasks:
   and whether the agent ever sees them — the PAT precedent argues for the
   pipeline task, since `run-agent.sh` wires the token into git and gh before the
   session starts so it never reaches the agent's context. Decided with the
-  trigger, which is Milestone 2 (Phase 7); for the submission the vulnerability
-  record is a ConfigMap and nothing fetches the Lightwell API during a run.
+  trigger, which is Milestone 2 (Phase 7). For the submission the credentials
+  are consumed by the runtime, not the agent: the first phase fetches the
+  record from Lightwell before its session starts, or the record is mounted as
+  a ConfigMap ([ADR-0009](adr/0009-tekton-pipeline-orchestration.md), 2026-10-27).
   Settled in part already: they stay inside the cluster. Putting them in GitHub
   secrets so Actions can build is ruled out, and no longer needed — the
   workflow that would have wanted them is not published to the demo repository

@@ -71,7 +71,7 @@ Build the image **in the cluster with two chained BuildConfigs**, output to the
 | Build | Source | Output |
 |---|---|---|
 | `upstream-claude-code` | upstream `agentic-starter-kits` at a pinned ref, context `agents/claude-code/deployment` | `upstream-claude-code:<claude-code-version>` |
-| `lightwell-agent-runtime` | this repository, `agent-runtime/Containerfile` | `lightwell-agent-runtime:<claude-code-version>` |
+| `lightwell-agent-runtime` | this repository, `agent-runtime/Containerfile` | `lightwell-agent-runtime:<runtime-version>` (see below) |
 
 The second build sets `dockerStrategy.from` to the first build's ImageStreamTag
 and declares an image change trigger, so bumping the harness version rebuilds
@@ -129,12 +129,36 @@ both places, which is why the Containerfile needs no cluster specific variant.
 | Component | Pinned version | Where enforced |
 |---|---|---|
 | Upstream starter kit | `agents.runtimeImage.upstreamRef` | `deploy/gitops/bootstrap-infra/values.yaml` |
-| Claude Code CLI | `agents.runtimeImage.claudeCodeVersion`, also the image tag | same |
+| Claude Code CLI | `agents.runtimeImage.claudeCodeVersion`, also the base image tag | same |
+| Agent runtime | `agents.runtimeImage.version`, the runtime image tag | same, and the remediation chart's `image.agent` |
 | `gh` CLI | `agents.runtimeImage.ghVersion` | same |
 
 The same three versions are pinned in `agent-runtime/build-image.sh` for local
 builds. They have to be bumped in both places, and ADR-0003's validation should
 be re-run when they are.
+
+## Amendment 2026-10-27: the runtime has its own version
+
+The runtime image was tagged with the harness version, which does not change
+when our layer does, so the pipeline could not name it: it referenced a
+`<ref>-<sha>` tag that only `scripts/build-runtime-image.sh` created. On a fresh
+cluster the chart's default named a tag that existed nowhere, and the same
+commit was built twice.
+
+The runtime now carries a semantic version, `agents.runtimeImage.version`, and
+the second build publishes `lightwell-agent-runtime:<version>`. The remediation
+chart names the same tag, so a fresh cluster runs the image its own build
+produced with no `--set`. A version is never rebuilt with different contents —
+that is what keeps `pullPolicy: IfNotPresent` honest — and two things enforce
+it: the `runtime-image-version` skill bumps every copy when the image changes,
+and `scripts/check-image-version.sh` fails when the copies disagree or the
+image changed without a higher version.
+
+Cost: a version bump on a cluster that already ran the previous one does not
+build by itself, because an image change trigger does not fire on a config
+change; `scripts/build-runtime-image.sh` starts it. A ConfigChange trigger
+would, but it fires before the base exists on a fresh cluster (see the
+BuildConfig comment).
 
 ## Demo Impact
 

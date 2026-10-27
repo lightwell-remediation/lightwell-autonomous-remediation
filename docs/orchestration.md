@@ -86,28 +86,43 @@ Two prerequisites, both of which fail in misleading ways if skipped:
 | An image built from the current `agent-runtime/` | `run-agent.sh` rejects a role, or a gate module is "not found" |
 
 ```bash
-scripts/push-secrets.sh               # all three Secrets, from secrets.env
-scripts/build-runtime-image.sh main   # build and tag <ref>-<sha>
-scripts/build-runtime-image.sh --from-dir   # or the working tree, unpushed
+scripts/push-secrets.sh                     # all three Secrets, from secrets.env
+scripts/build-runtime-image.sh              # only if <version> is missing
+scripts/build-runtime-image.sh --from-dir   # try the working tree, unpushed
 ```
 
-`build-runtime-image.sh` prints the `--set image.agent=…` line that points
-the chart at what it just built. The tag it creates is never reused; the
-BuildConfig's own output tag is overwritten on every build and must not be
-referenced from the chart.
+The runtime is versioned (`agents.runtimeImage.version`), the cluster's build
+publishes it as `lightwell-agent-runtime:<version>`, and the chart names the
+same tag, so nothing needs a `--set`. A change to `agent-runtime/` bumps the
+version — the `runtime-image-version` skill does it and
+`scripts/check-image-version.sh` holds every copy to it. `--from-dir` builds
+the working tree as a `wip-` tag through a throwaway BuildConfig, so the
+version tag is never overwritten, and prints the `--set` line to try it.
 
 ## A real run
 
 ```bash
-scripts/run-remediation.sh .fixtures/osv/CVE-2026-68079.json            # path A
+scripts/run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2                 # path A
 scripts/run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json  # path B
 ```
 
-It mounts the record as a ConfigMap, starts the run, waits, and prints each
-task's status. `--osv` also takes a URL, which the runtime fetches — with the
-Lightwell credentials when they are set, without them for a public source
-such as osv.dev; mounting it means the run does not depend on the record's
-source being reachable from the cluster and the same record replays later.
+It starts the run, waits, and prints each task's status. The record is a
+file, a URL, or a Lightwell id:
+
+- A **file** is mounted as a ConfigMap. The run does not depend on the
+  record's source being reachable, and the same record replays later.
+- A **URL** is fetched by the first phase into the run's workspace, with the
+  Lightwell credentials when they are set and without them for a public
+  source such as osv.dev. The later phases read that copy, so one run is one
+  request.
+- A **Lightwell id** becomes a URL under `LW_OSV_BASE_URL` from the
+  `lightwell-lightwell` Secret. The CVE in the id becomes the run's
+  `vulnerability` parameter: the record Lightwell serves bundles every CVE
+  fixed by the same rebuild, and the analysis is held to the one the run is
+  for.
+- An **OSV id**, or a file named after one that is not on disk, is fetched
+  from the public registry (`OSV_API_URL`, osv.dev by default), with no
+  credentials. The Lightwell credentials only ever go to the Lightwell host.
 The two paths, and which application each runs against:
 [replicate.md](replicate.md).
 
@@ -131,11 +146,11 @@ lightwell-agents` shows what is remembered, and `--reset-values` puts the
 chart back in charge. Worth doing on any upgrade meant to restore the
 committed state.
 
-**The BuildConfig's output tag is not immutable.** It is overwritten on every
-build, so with the default `IfNotPresent` a node keeps serving the layer it
-cached first and a rebuild changes nothing — the symptom was a module the
-image demonstrably contained. The chart references a tag naming the commit
-instead, which `build-runtime-image.sh` creates and never reuses.
+**A reused tag is not immutable.** With `IfNotPresent` a node keeps serving
+the layer it cached first, so rebuilding under the same tag changes nothing —
+the symptom was a module the image demonstrably contained. The tag is now the
+runtime's version, bumped whenever the image changes and never rebuilt with
+other contents (`scripts/check-image-version.sh`).
 
 **`oc start-build --from-dir` ignores `.dockerignore`.** It tars the whole
 directory, so it trips over `.workspace/` — owned by the container's mapped
