@@ -118,6 +118,13 @@ than hand on a tree that does not build.
   compiling — and the refusal costs you the work that produced the content.
   This applies to every file you create or change, source and tests included,
   not only to the output document.
+- **Change an existing file with Edit, a few lines at a time — never by
+  writing it out again.** Every reply has an output cap of about 4,000 tokens,
+  set by how long the model gateway lets a request run. A reply that rewrites a
+  whole source file or test class runs past it, the request is refused, and
+  the session ends with nothing applied. One Edit per change, carrying only the
+  lines that move; Write only for a file that does not exist yet, and keep it
+  short.
 - **Do not commit, branch or push.** Delivering the change is not your work.
 - **Do not touch `settings.xml`.** Build configuration is not part of any
   remediation.

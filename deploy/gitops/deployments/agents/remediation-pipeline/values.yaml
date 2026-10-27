@@ -11,7 +11,7 @@ image:
   #
   # A `wip-` tag passed with --set means someone built a working tree with
   # build-runtime-image.sh --from-dir to try something; never commit one here.
-  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:1.0.0
+  agent: image-registry.openshift-image-registry.svc:5000/lightwell-agents/lightwell-agent-runtime:1.1.0
   # `oc` for the two tasks that talk to the Kubernetes API. The in-cluster
   # imagestream avoids needing a registry.redhat.io pull secret.
   cli: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest

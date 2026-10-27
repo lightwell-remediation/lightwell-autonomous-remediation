@@ -12,7 +12,7 @@ namespace: lightwell-agents
 claudeCodeVersion: "2.1.295"
 # The runtime's own version and its output tag. Set from
 # agents.runtimeImage.version in bootstrap-infra.
-runtimeVersion: "1.0.0"
+runtimeVersion: "1.1.0"
 ghVersion: "2.63.2"
 
 upstream:
