@@ -1,0 +1,94 @@
+{{- if .Values.consolePlugin.enabled }}
+---
+# Appends the Pipelines console plugin to console.operator spec.plugins.
+# Not a manifest of the Console itself: that object is a cluster singleton the
+# console operator defaults and other operators add to, and owning its list
+# would remove their plugins (ADR-0006, two owners of a singleton).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipelines-console-plugin-enabler
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: lightwell-pipelines-console-plugin-enabler
+rules:
+  - apiGroups: ["operator.openshift.io"]
+    resources: ["consoles"]
+    resourceNames: ["cluster"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["console.openshift.io"]
+    resources: ["consoleplugins"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: lightwell-pipelines-console-plugin-enabler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: lightwell-pipelines-console-plugin-enabler
+subjects:
+  - kind: ServiceAccount
+    name: pipelines-console-plugin-enabler
+    namespace: {{ .Release.Namespace }}
+---
+# PostSync, so it runs after the Subscription and the RBAC above exist, on
+# every sync. Idempotent: it only patches when the plugin is not listed yet.
+# On a fresh cluster the operator creates the ConsolePlugin minutes after the
+# Subscription, so the Job waits for it rather than failing.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipelines-console-plugin-enabler
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1500
+  template:
+    spec:
+      serviceAccountName: pipelines-console-plugin-enabler
+      restartPolicy: Never
+      containers:
+        - name: enable
+          image: {{ .Values.consolePlugin.image }}
+          env:
+            - name: HOME
+              value: /tmp
+            - name: PLUGIN
+              value: {{ .Values.consolePlugin.name | quote }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -uo pipefail
+              for _ in $(seq 1 120); do
+                oc get consoleplugin "$PLUGIN" >/dev/null 2>&1 && break
+                echo "waiting for ConsolePlugin $PLUGIN"; sleep 10
+              done
+              oc get consoleplugin "$PLUGIN" >/dev/null || { echo "ConsolePlugin $PLUGIN never appeared"; exit 1; }
+              plugins="$(oc get consoles.operator.openshift.io cluster -o jsonpath='{.spec.plugins}')"
+              if grep -q "\"$PLUGIN\"" <<<"$plugins"; then
+                echo "$PLUGIN already enabled"; exit 0
+              fi
+              # Append, never replace: other operators' plugins live in the same list.
+              if [ -z "$plugins" ]; then
+                patch='[{"op":"add","path":"/spec/plugins","value":["'"$PLUGIN"'"]}]'
+              else
+                patch='[{"op":"add","path":"/spec/plugins/-","value":"'"$PLUGIN"'"}]'
+              fi
+              oc patch consoles.operator.openshift.io cluster --type=json -p "$patch" && echo "$PLUGIN enabled"
+{{- end }}

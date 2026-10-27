@@ -112,6 +112,14 @@ GITOPS_NS="$(oc get subscriptions.operators.coreos.com -A \
   -o jsonpath='{range .items[?(@.spec.name=="openshift-gitops-operator")]}{.metadata.namespace}{"\n"}{end}' 2>/dev/null | head -1)"
 check_csv "${GITOPS_NS:-openshift-gitops-operator}" gitops "OpenShift GitOps"
 check_csv openshift-operators       pipelines "OpenShift Pipelines"
+# The Pipelines entry in the web console, which is where a run is watched.
+# Enabled by a PostSync Job in platform-openshift-pipelines.
+if oc get consoles.operator.openshift.io cluster -o jsonpath='{.spec.plugins}' 2>/dev/null \
+     | grep -q '"pipelines-console-plugin"'; then
+  log_ok "Pipelines console plugin enabled"
+else
+  fail "Pipelines console plugin not enabled — see the pipelines-console-plugin-enabler Job in openshift-operators"
+fi
 if oc get ns redhat-ods-operator >/dev/null 2>&1; then
   check_csv redhat-ods-operator rhods "OpenShift AI"
 else

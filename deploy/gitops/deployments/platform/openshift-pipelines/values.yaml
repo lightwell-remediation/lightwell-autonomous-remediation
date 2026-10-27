@@ -14,3 +14,16 @@ operator:
   sourceNamespace: openshift-marketplace
   installPlanApproval: Automatic
   startingCSV: ""
+
+# The Pipelines entry in the web console. Since OpenShift Pipelines 1.22 it
+# only exists with the console plugin enabled — the static entry that used to
+# appear regardless was removed (1.22 release notes, Breaking changes). The
+# operator creates the ConsolePlugin, but only the console's "Enable" button
+# lists it in console.operator spec.plugins; a Subscription from git never does.
+# The Console is a cluster singleton shared with other plugins (ODF,
+# monitoring, networking), so a PostSync Job appends this one instead of
+# owning the list.
+consolePlugin:
+  enabled: true
+  name: pipelines-console-plugin
+  image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
