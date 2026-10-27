@@ -103,7 +103,27 @@ spec:
           args=(--role patch --no-clone)
           [ -n "$osv" ]            && args+=(--osv "$osv")
           [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
-          entrypoint.sh /usr/local/bin/run-agent.sh "${args[@]}" || status=$?
+
+          # One reply over the output cap refuses the request and ends the
+          # session (agent-runtime.md — Known limitations). That is the model
+          # writing too much at once, not a patch that failed, so it is run
+          # again here, once — not through the Task's retries, which the spec
+          # keeps for a regression verification found. Only when the session
+          # left the tree as it found it: the tree is never clean here, since
+          # the demonstration added its test, so it is compared with itself
+          # before the session rather than with HEAD.
+          repo="$(workspaces.source.path)/repo"
+          tree_state() { { git -C "$repo" status --porcelain; git -C "$repo" diff; } 2>/dev/null | sha256sum; }
+          before="$(tree_state)"
+          for session in 1 2; do
+            status=0
+            entrypoint.sh /usr/local/bin/run-agent.sh "${args[@]}" || status=$?
+            [ "$status" = "0" ] && break
+            [ "$session" = "1" ] || break
+            grep -qE 'exceeded the [0-9]+ output token maximum' "$OUT/result.json" 2>/dev/null || break
+            [ "$(tree_state)" = "$before" ] || break
+            echo "patch: a reply exceeded the output cap and nothing was changed — running the session once more" >&2
+          done
         fi
 
         if [ "$status" != "0" ]; then

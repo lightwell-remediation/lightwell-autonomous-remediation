@@ -88,6 +88,17 @@ times the gateway window.
 - AND any other demonstration failure, or a cap failure that left a change
   behind, is not retried
 
+#### Scenario: A Reply Exceeds The Cap During Patching
+
+- GIVEN the patching session stops because one reply exceeded the output cap
+- AND the working tree is as it was when the session started
+- WHEN the session fails
+- THEN the patching session runs once more, within the same attempt
+- AND the attempt that verification's regression may still claim is not spent
+  on it
+- AND any other patching failure, or a cap failure that left a change behind,
+  ends the phase as before
+
 ### Requirement: Model Portability
 
 The runtime SHALL NOT hardcode a model family. Switching to a different model

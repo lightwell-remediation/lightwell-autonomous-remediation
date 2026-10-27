@@ -24,6 +24,9 @@ phase's terminal state. Patching and verification are one Task with
 cap ([agent-runtime.md — Known limitations](agent-runtime.md#known-limitations))
 on a checkout the session left untouched. Every other failure leaves a
 sentinel in `out/`, and the second attempt exits without starting a session.
+The same refusal during `patch` is re-run once inside the step instead, when
+the session left the tree as it found it: the Task's own retry stays reserved
+for a regression that verification reports.
 
 `sbom` rebuilds the application's bill of materials from the remediated
 tree. After verification so it describes a tree that passed, and before
