@@ -30,7 +30,7 @@
 # vulnerable code is actually reachable, lives on a branch of its own.
 #
 # Examples:
-#   run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2 --branch feat/reachable-cve
+#   run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2
 #   run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json
 #
 # Exit status:

@@ -77,12 +77,11 @@ only).
 
 | Prerequisite | |
 |---|---|
-| OpenShift 4.19+, cluster-admin | 16 CPU / 48 GiB minimum, no GPU. Validated on RHDP *Field Sourced Content – OpenShift Base*, OCP 4.22 |
+| OpenShift 4.16+, cluster-admin | 16 CPU / 48 GiB minimum, no GPU. Validated on RHDP *Field Sourced Content – OpenShift Base*, OCP 4.22 |
 | RHDP MaaS API key **with access to `claude-sonnet-4-6`** | The model every run was validated with. Not enabled for a MaaS key by default: request access to it |
 | Your own copy of the application | From a template; **private** on path A, since the agent's pull requests show Lightwell data |
 | GitHub fine-grained PAT | Scoped to that copy |
 | Lightwell credentials | Path A only |
-| Trusted Profile Analyzer | Optional, an existing instance; not installed in the cluster in Milestone 1 |
 
 Every step, with the command, what success looks like and how long it takes:
 **[docs/replicate.md](docs/replicate.md)**.
@@ -91,12 +90,12 @@ Every step, with the command, what success looks like and how long it takes:
 
 | Product | Role | Version validated |
 |---|---|---|
-| Red Hat OpenShift (RHDP) | Platform | 4.21 |
+| Red Hat OpenShift (RHDP) | Platform | 4.21, 4.22 |
 | Red Hat OpenShift GitOps | Installs and reconciles the platform | `latest` channel |
 | Red Hat OpenShift Pipelines | Orchestrates the remediation | 1.24 |
 | Red Hat OpenShift AI | Platform for Milestone 2 (MLflow, TrustyAI, EvalHub) | 3.5 |
 | Red Hat MaaS | Model inference | — |
-| Red Hat Trusted Profile Analyzer | Validates the regenerated inventory | 3.1 |
+| Red Hat Trusted Profile Analyzer | Validates the regenerated inventory (an external instance in Milestone 1, not part of the replication) | 3.1 |
 | Red Hat Developer Hub | Milestone 2 (scaffolded, off) | — |
 
 ## Limitations
@@ -105,7 +104,10 @@ Milestone 1 is a single agent with no judge: a test can assert the defect
 instead of the contract and still pass every deterministic gate, so the pull
 request names the test it rests on for the reviewer. Runs start from a
 PipelineRun rather than a webhook, there is no sandbox beyond the pod and the
-permission policy yet, and path A needs Lightwell credentials. Details:
+permission policy yet, and path A needs Lightwell credentials. Trusted
+Profile Analyzer is left out of the replication until the bootstrap installs
+it in the cluster (Milestone 2): Milestone 1 used an instance on another
+cluster. Details:
 [docs/replicate.md — Limitations](docs/replicate.md#limitations-of-milestone-1).
 
 ## Repository
