@@ -147,11 +147,14 @@ requests before, 20.5 CPU and 51.7 GiB after, so the whole bootstrap costs about
 comfortable. The validation cluster is a single node with 32 and 124.
 
 Storage: a default StorageClass, and an image registry that is Managed with
-storage behind it; `make preflight` checks both. The dependency cache asks for
-ReadWriteMany on `ocs-external-storagecluster-cephfs`, the CephFS class of an
-RHDP cluster; the default RBD class cannot do RWX. Elsewhere point the
-remediation chart at your RWX class (`--set cache.storageClass=<class>`), or
-accept queued runs with `--set cache.accessMode=ReadWriteOnce`.
+storage behind it. The dependency cache asks for ReadWriteMany on
+`ocs-external-storagecluster-cephfs`, the CephFS class of an RHDP cluster; the
+default RBD class cannot do RWX. `make preflight` checks all three. Elsewhere
+point the remediation chart at your RWX class
+(`--set cache.storageClass=<class>`). `--set cache.accessMode=ReadWriteOnce`
+also works on a single node, where every pod shares the node the volume is
+attached to; on several nodes, a run scheduled on another node waits in
+`ContainerCreating` (Multi-Attach) until the volume is free.
 
 Two sessions at a time is a documented budget, not a hard cap. The namespace
 has a LimitRange with defaults and a ceiling, and no ResourceQuota: a quota that

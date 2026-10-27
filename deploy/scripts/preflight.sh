@@ -82,6 +82,20 @@ else
   fail "no default StorageClass. MLflow and the Tekton workspaces both need PVCs"
 fi
 
+# The dependency cache is the one claim that names a class, because it needs
+# ReadWriteMany and a default RBD class cannot provide it. Read from the chart
+# so there is one place it is set. Not a hard failure: the class is a value,
+# and the remediation chart is installed later, with --set if need be.
+CACHE_VALUES="$SCRIPT_DIR/../gitops/deployments/agents/remediation-pipeline/values.yaml"
+CACHE_SC="$(awk '/^cache:/{c=1; next} c && /^[^ #]/{c=0} c && $1=="storageClass:"{gsub(/"/,"",$2); print $2; exit}' "$CACHE_VALUES" 2>/dev/null)"
+if [[ -z "$CACHE_SC" ]]; then
+  log_ok "dependency cache: default StorageClass ($DEFAULT_SC), make sure it can do ReadWriteMany"
+elif oc get sc "$CACHE_SC" >/dev/null 2>&1; then
+  log_ok "dependency cache StorageClass: $CACHE_SC"
+else
+  log_skip "dependency cache StorageClass $CACHE_SC does not exist here; install the remediation chart with --set cache.storageClass=<an RWX class> (deploy/README.md — Capacity)"
+fi
+
 log_step "Operator channels"
 check_channel() {
   local pkg="$1" want="$2" label="$3"
