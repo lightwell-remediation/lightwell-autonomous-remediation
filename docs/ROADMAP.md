@@ -318,6 +318,31 @@ one Phase 2 already built.
       produce and no rebuild follows. What would remove the step is building
       on merge and letting the tag be the merge commit, or referencing the
       digest the build writes — both are work, neither is urgent (David)
+- [ ] **The chart does not use the image the cluster already built.** Found
+      in the jury validation on a fresh RHDP cluster, 2026-10-27. The
+      BuildConfigs build the runtime on their own (ConfigChange on the base,
+      ImageChange chaining the runtime), but the remediation chart points at
+      a `main-<sha>` tag that only `scripts/build-runtime-image.sh` creates.
+      Two reasons it does, both sound:
+      - the BuildConfig's own tag (`lightwell-agent-runtime:2.1.295`) is
+        overwritten on every build, so a run would execute whatever was built
+        last and no pull request could name the commit it came from;
+      - with `pullPolicy: IfNotPresent` a reused tag keeps serving the layer
+        the node cached first, so a rebuild changes nothing — a bug already
+        hit. A `<ref>-<sha>` tag is never reused, which makes `IfNotPresent`
+        safe.
+
+      What it costs today: the same commit is built twice (~4 extra minutes
+      on a fresh cluster), and the `values.yaml` default
+      (`main-9768e2d`, a commit of the retired `-dev` history) exists in no
+      cluster, so a `helm install` without `--set image.agent=…` leaves every
+      task in `ImagePullBackOff`. Ways out, cheapest first: have
+      `build-runtime-image.sh` add the `main-<sha>` tag to the automatic
+      build with `oc tag` when that build already came from the commit,
+      instead of rebuilding; or reference the image by the **digest** the
+      build writes, which is immutable even when the tag is not and answers
+      both reasons at once; or build on merge so the tag is the merge commit
+      (David)
 - [x] **Put the BuildConfig's branch in the chart.** The runtime ref is
       `agents.runtimeImage.appRepoRef: "main"` in
       `deploy/gitops/bootstrap-infra/values.yaml` since PR #4, so ArgoCD no
@@ -688,7 +713,7 @@ Tasks:
 
 - ~~Which CVE and vulnerable library to use for the demo?~~ → four CVEs in
   `org.apache.cxf:cxf-rt-rs-security-oauth2:4.2.2`, remediated by a Lightwell
-  rebuild ([sample app README](https://github.com/lightwell-remediation/lw-apache-cxf-sample)).
+  rebuild (the private sample app's README).
   Still open is **reachability**: all four sit in the CXF authorization server
   (`JCacheCodeDataProvider`, `JwtRequestCodeFilter`, `DefaultEncryptingCodeDataProvider`,
   `DefaultEncryptingOAuthDataProvider`), and the sample is a pure resource server —
@@ -713,8 +738,10 @@ Tasks:
   and whether the agent ever sees them — the PAT precedent argues for the
   pipeline task, since `run-agent.sh` wires the token into git and gh before the
   session starts so it never reaches the agent's context. Decided with the
-  trigger, which is Milestone 2 (Phase 7); for the submission the vulnerability
-  record is a ConfigMap and nothing fetches the Lightwell API during a run.
+  trigger, which is Milestone 2 (Phase 7). For the submission the credentials
+  are consumed by the runtime, not the agent: the first phase fetches the
+  record from Lightwell before its session starts, or the record is mounted as
+  a ConfigMap ([ADR-0009](adr/0009-tekton-pipeline-orchestration.md), 2026-10-27).
   Settled in part already: they stay inside the cluster. Putting them in GitHub
   secrets so Actions can build is ruled out, and no longer needed — the
   workflow that would have wanted them is not published to the demo repository

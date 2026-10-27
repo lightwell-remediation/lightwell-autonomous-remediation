@@ -42,7 +42,7 @@ being judged on its work, which is where the next finding came from.
 
 ## The finding that matters: "failed before, passes after" is not enough
 
-Opus delivered [PR #17](https://github.com/lightwell-remediation/lw-apache-cxf-demo/pull/17)
+Opus delivered PR #17 (private demo repository)
 with every gate green and the application still vulnerable. Its test:
 
 ```java

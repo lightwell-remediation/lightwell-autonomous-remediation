@@ -99,15 +99,27 @@ referenced from the chart.
 ## A real run
 
 ```bash
-scripts/run-remediation.sh .fixtures/osv/CVE-2026-68079.json            # path A
+scripts/run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2                 # path A
 scripts/run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json  # path B
 ```
 
-It mounts the record as a ConfigMap, starts the run, waits, and prints each
-task's status. `--osv` also takes a URL, which the runtime fetches — with the
-Lightwell credentials when they are set, without them for a public source
-such as osv.dev; mounting it means the run does not depend on the record's
-source being reachable from the cluster and the same record replays later.
+It starts the run, waits, and prints each task's status. The record is a
+file, a URL, or a Lightwell id:
+
+- A **file** is mounted as a ConfigMap. The run does not depend on the
+  record's source being reachable, and the same record replays later.
+- A **URL** is fetched by the first phase into the run's workspace, with the
+  Lightwell credentials when they are set and without them for a public
+  source such as osv.dev. The later phases read that copy, so one run is one
+  request.
+- A **Lightwell id** becomes a URL under `LW_OSV_BASE_URL` from the
+  `lightwell-lightwell` Secret. The CVE in the id becomes the run's
+  `vulnerability` parameter: the record Lightwell serves bundles every CVE
+  fixed by the same rebuild, and the analysis is held to the one the run is
+  for.
+- An **OSV id**, or a file named after one that is not on disk, is fetched
+  from the public registry (`OSV_API_URL`, osv.dev by default), with no
+  credentials. The Lightwell credentials only ever go to the Lightwell host.
 The two paths, and which application each runs against:
 [replicate.md](replicate.md).
 

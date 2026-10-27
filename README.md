@@ -94,7 +94,7 @@ helm upgrade --install remediation-pipeline \
   deploy/gitops/deployments/agents/remediation-pipeline \
   -n lightwell-agents --set image.agent=<printed above>
 scripts/run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json
-                                     # path A: the record exported from Lightwell
+                                     # path A: x_RHLW-CVE-2026-68079-4.2.2, fetched from Lightwell
 ```
 
 ## Red Hat products
