@@ -5,13 +5,27 @@ out — with an exploit test that proves the fix, a regenerated inventory, and
 the result checked in Red Hat Trusted Profile Analyzer. Built on OpenShift,
 OpenShift Pipelines, OpenShift GitOps and Red Hat AI.
 
-DemoJam | Red Hat One 2027 — [proposal](docs/DemoJam%20_%20Red%20Hat%20One%202027.pdf).
-
 ## Why it matters
 
 - **Mean time to remediate in minutes, not days.** A vulnerability finding
-  becomes a verified code change in 7–11 minutes, at about $1 of inference
-  per remediation ([measurements](docs/measurements/)).
+  becomes a verified code change in 7–11 minutes, with nobody at the keyboard
+  ([measurements](docs/measurements/)). The fix waits for a reviewer, not for
+  a sprint.
+- **Under a dollar per remediation.** One real run (PipelineRun
+  `remediate-8ksnt`, CVE-2026-68079): 10m41s wall clock and about $0.94 of
+  model cost on `claude-sonnet-4-6`, at list price. The model only runs where a
+  decision is needed:
+
+  | Phase | Duration | Model cost |
+  |---|---|---|
+  | claim | 7s | – |
+  | analyse | 1m05s | $0.11 |
+  | baseline | 13s | – |
+  | demonstrate | 2m33s | $0.26 |
+  | patch + verify | 4m45s | $0.47 |
+  | sbom | 36s | – |
+  | deliver | 1m16s | $0.10 |
+  | outcome | 5s | – |
 - **Evidence, not a version bump.** The agent decides whether the vulnerable
   code is actually reached, writes a test that fails while the application is
   exposed, and only delivers when that test passes after the change and
