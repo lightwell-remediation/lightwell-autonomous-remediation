@@ -15,6 +15,7 @@ agent-runtime/
 ├── build-image.sh                  # builds both images at pinned versions
 ├── run-agent.sh                    # same entrypoint locally and in the container
 ├── run-suite.sh                    # the test suite, run the same way every time
+├── trace-export.py                 # sends out/traces to a backend after the run
 ├── claude/
 │   ├── settings.json               # default role
 │   ├── settings.analyze.json       # read-only: concludes, changes nothing
@@ -29,7 +30,8 @@ agent-runtime/
 │   ├── check-{analysis,patch,verification}.js   # did it produce usable output?
 │   ├── governed-artifacts.js       # what does this version declaration move?
 │   ├── test-results.js             # a test run, as a comparable list
-│   └── trace-summary.js            # what did it spend its turns on?
+│   ├── trace-summary.js            # what did it spend its turns on?
+│   └── capture-trace.js            # keep each session's transcript in out/traces
 └── test/
     ├── check-analysis.test.sh      # the gates, without spending inference
     ├── check-gates.test.sh
@@ -316,6 +318,22 @@ blocked, looping, or paging through a large file. Every diagnosis made from that
 summary alone turned out wrong; the worst offender — an agent reading directories
 and guessing package paths — was found within one run of the trace existing.
 
+Every session also leaves its harness transcript in `out/traces/`, numbered
+so that no role and no retry overwrites another (`out/session.jsonl` is
+rewritten by each role):
+
+```
+out/traces/01-analyze.jsonl       out/traces/01-analyze.meta.json
+out/traces/02-exploit.jsonl       out/traces/02-exploit.meta.json
+out/traces/03-patch.jsonl         out/traces/03-patch.meta.json   # attempt 1
+out/traces/04-patch.jsonl         out/traces/04-patch.meta.json   # attempt 2
+```
+
+The metadata names the harness and its version, the transcript format, role,
+attempt, model, turns, cost, exit status and the role document's terminal
+state. Capture runs from an `EXIT` trap, so failed sessions are kept too, and
+it never changes the exit status. See Observability for where these go.
+
 Repeated targets are listed separately: `Read ×40` of one file is a file being
 paged through, while forty different files is an agent that does not know where
 to look.
@@ -333,6 +351,54 @@ for l in open(".workspace/out/session.jsonl"):
 
 ## Observability
 
+### Agent traces in MLflow
+
+Contract: [`agent-tracing.spec.md`](../specs/observability/agent-tracing.spec.md).
+Decision: [ADR-0010](adr/0010-agent-tracing.md).
+
+The traces in `out/traces/` are sent to a backend by the Pipeline's `trace`
+task, which runs in `finally` (so failed runs are traced too) and always exits 0.
+The backend is `tracing.exporter` in the pipeline chart: `none` by default,
+`mlflow` on the platform bootstrap (`agents.tracing.exporter` in
+`deploy/gitops/bootstrap-infra/values.yaml`, which requires `platform.mlflow`).
+
+| In MLflow | Value |
+|---|---|
+| Workspace | the agent namespace, `lightwell-agents` |
+| Experiment | `lightwell/<pipelinerun>` |
+| Session | `<pipelinerun>-<role>` (`-<candidate>` when a role has several) |
+| Trace | one per session attempt, with `lightwell.*` tags: role, attempt, harness, model, turns, cost, exit status, terminal state |
+
+How it works, and why not the starter kit's way: the starter kit traces with
+`mlflow autolog claude`, a Claude Code `Stop` hook, but sessions here run with
+`claude --bare`, which skips hooks. `trace-export.py` calls the same function
+that hook calls, `mlflow.claude_code.tracing.process_transcript`, on the kept
+transcript, with our session id. Readers are keyed by transcript format, so a
+second harness is one more reader, and an OpenTelemetry backend is one more
+exporter.
+
+Identity: the `trace` task runs as `lightwell-tracer`, bound to the RHOAI
+ClusterRole `mlflow-operator-mlflow-integration` (MLflow pseudo-resources
+only). `run-remediation.sh` and `test-pipeline.sh` bind it with
+`taskRunSpecs` when the account exists. No `MLFLOW_*` variable is set on agent
+steps, and the agent's account still holds no Role.
+
+To export by hand, for example from a workstation against the route:
+
+```bash
+export MLFLOW_TRACKING_URI=https://<mlflow-route>/mlflow
+export MLFLOW_TRACKING_TOKEN=$(oc create token lightwell-tracer -n lightwell-agents)
+export MLFLOW_WORKSPACE=lightwell-agents
+.venv/bin/python agent-runtime/trace-export.py --exporter mlflow \
+  --traces .workspace/out/traces --run local-$(date +%Y%m%d%H%M)
+```
+
+The client is the one in the base image (MLflow 3.12.0). `process_transcript`
+is part of MLflow's Claude Code integration rather than a stable API, so a
+base image bump that moves the client re-runs `agent-runtime/test/trace-capture.test.sh`.
+
+### Harness telemetry
+
 Two telemetry channels, often confused:
 
 | Channel | Destination | Controlled by | State |
@@ -340,17 +406,13 @@ Two telemetry channels, often confused:
 | Vendor telemetry | Harness vendor | `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING` | Disabled |
 | OpenTelemetry export | Your collector | `CLAUDE_CODE_ENABLE_TELEMETRY=1` + `OTEL_*` | Opt-in, unset |
 
-Disabling the first is not documented to disable the second, and the vendor
-docs describe OTel events still reaching your collector while vendor-bound
-traffic is blocked. This has **not been verified on this project yet** — see
-ADR-0003 Validation.
-
-Useful once wired: `claude_code.cost.usage`, `claude_code.token.usage`,
-`claude_code.pull_request.count`, `claude_code.commit.count` — directly the
-"what does remediating a CVE cost" demo metric. MLflow accepts OTLP at
-`/v1/traces` (HTTP only, SQL backend required), so the intended shape is
-Claude Code → Red Hat build of OpenTelemetry → MLflow / Tempo / Prometheus.
-Designed in `specs/observability/agent-tracing.spec.md` (ROADMAP Phase 4.5).
+Disabling the first is not documented to disable the second. This has **not
+been verified on this project yet** — see ADR-0003 Validation. Claude Code's
+OTel traces (as opposed to metrics) need `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`
+and are beta ([monitoring-usage](https://code.claude.com/docs/en/monitoring-usage)).
+Metrics such as `claude_code.cost.usage` and `claude_code.token.usage` remain a
+candidate for the future OpenTelemetry exporter path (Red Hat build of
+OpenTelemetry → Tempo / Prometheus), ADR-0010.
 
 ## Troubleshooting
 

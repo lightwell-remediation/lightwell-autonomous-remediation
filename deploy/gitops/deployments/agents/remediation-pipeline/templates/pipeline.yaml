@@ -313,3 +313,24 @@ spec:
           value: $(tasks.analyze.results.terminal-state)
         - name: delivery-status
           value: $(tasks.deliver.status)
+
+    # ── Trace ────────────────────────────────────────────────────────────
+    # In finally because the run most worth reading is the one that stopped
+    # early. Always present, so the Pipeline is the same whichever backend is
+    # selected; with none it reports that and sends nothing (ADR-0010).
+    - name: trace
+      taskRef:
+        name: remediation-trace
+        kind: Task
+      params:
+        - name: run-name
+          value: $(context.pipelineRun.name)
+        - name: application
+          value: $(params.application)
+        - name: vulnerability
+          value: $(params.vulnerability)
+        - name: image
+          value: $(params.image)
+      workspaces:
+        - name: source
+          workspace: source

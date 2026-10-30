@@ -206,9 +206,13 @@ for example through a node-local collector.
 
 ## Validation
 
-To be completed when implemented: capture test without inference, a replay
-run with export enabled (nothing to send, exit 0), and one real run whose
-experiment shows a session per role.
+- 2026-10-30, offline: `agent-runtime/test/trace-capture.test.sh`, 16/16
+  against MLflow 3.12.0 with a sqlite store — one experiment per run, one
+  session per role, retries as separate traces in their role's session, an
+  unreadable format skipped, an unreachable backend reported with exit 0.
+- Pending: a replay run with export enabled (nothing to send, exit 0) and one
+  real run on the cluster whose experiment shows a session per role, with the
+  `lightwell-tracer` identity against the in-cluster MLflow.
 
 ## References
 

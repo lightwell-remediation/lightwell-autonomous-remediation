@@ -40,3 +40,34 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Values.serviceAccount.claim }}
     namespace: {{ .Values.namespace }}
+{{- if eq .Values.tracing.exporter "mlflow" }}
+---
+# The trace export's identity (ADR-0010). Bound to the trace task alone, by
+# taskRunSpecs on the run, so tracing never adds a permission to the agent's
+# account. The ClusterRole is the RHOAI MLflow operator's: experiments and
+# traces in this namespace's MLflow workspace — pseudo-resources the MLflow
+# server checks, nothing on the Kubernetes API.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.tracing.serviceAccount }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.tracing.serviceAccount }}-mlflow
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.tracing.mlflow.clusterRole }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.tracing.serviceAccount }}
+    namespace: {{ .Values.namespace }}
+{{- end }}

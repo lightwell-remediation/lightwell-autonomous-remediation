@@ -1,0 +1,69 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: remediation-trace
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: lightwell-remediation
+spec:
+  description: >-
+    Send the traces the run's sessions left in out/traces to the configured
+    backend (agent-tracing.spec.md; ADR-0010). Runs in finally, so failed and
+    cancelled runs are traced too, and always exits 0: tracing explains a run,
+    it never decides one.
+
+    The backend is chosen by the chart (tracing.exporter, "none" by default).
+    With a backend that needs an identity, the run binds this task to the
+    tracer service account through taskRunSpecs — the agent's own account
+    never gains a permission for it, and no session sees the credential.
+  params:
+    - name: run-name
+      type: string
+      description: The PipelineRun, which names the experiment and the sessions.
+    - name: application
+      type: string
+      default: ""
+    - name: vulnerability
+      type: string
+      default: ""
+    - name: image
+      type: string
+      default: {{ include "remediation.agentImage" . | quote }}
+  workspaces:
+    - name: source
+      description: The run's workspace, read for out/traces only.
+  steps:
+    - name: export
+      image: $(params.image)
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      computeResources:
+        {{- toYaml .Values.resources.trace | nindent 8 }}
+      {{- with .Values.tracing.mlflow }}
+      {{- if eq $.Values.tracing.exporter "mlflow" }}
+      # MLflow's own client variables. Set on this step only: on an agent step
+      # MLFLOW_TRACKING_URI would make the starter kit's entrypoint install a
+      # hook that never runs and write the token into the workspace.
+      env:
+        - name: MLFLOW_TRACKING_URI
+          value: {{ .uri | quote }}
+        - name: MLFLOW_TRACKING_AUTH
+          value: {{ .auth | quote }}
+        - name: MLFLOW_TRACKING_SERVER_CERT_PATH
+          value: {{ .certPath | quote }}
+        # A backend that is down costs this many seconds, not MLflow's default
+        # of several minutes of retries, before the run can finish.
+        - name: MLFLOW_HTTP_REQUEST_MAX_RETRIES
+          value: {{ .maxRetries | quote }}
+        - name: MLFLOW_HTTP_REQUEST_TIMEOUT
+          value: {{ .requestTimeout | quote }}
+      {{- end }}
+      {{- end }}
+      script: |
+        #!/usr/bin/env bash
+        python3 "${TRACE_EXPORT:-/usr/local/bin/trace-export.py}" \
+          --exporter {{ .Values.tracing.exporter | quote }} \
+          --traces "$(workspaces.source.path)/out/traces" \
+          --run "$(params.run-name)" \
+          --application "$(params.application)" \
+          --record "$(params.vulnerability)" || true
+        exit 0

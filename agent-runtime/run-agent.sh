@@ -248,6 +248,8 @@ mkdir -p "$REPO_DIR" "$OUT_DIR" "$INPUT_DIR"
 readonly RESULT_FILE="$OUT_DIR/result.json"
 readonly LOG_FILE="$OUT_DIR/session.log"
 readonly TRACE_FILE="$OUT_DIR/session.jsonl"
+# One transcript per session, never overwritten (lib/capture-trace.js).
+readonly TRACES_DIR="$OUT_DIR/traces"
 readonly OSV_FILE="$INPUT_DIR/osv.json"
 readonly ANALYSIS_FILE="$OUT_DIR/analysis.json"
 readonly TREE_FILE="$OUT_DIR/dependency-tree.txt"
@@ -674,6 +676,18 @@ claude --bare -p "$TASK" \
   >"$TRACE_FILE" 2>"$LOG_FILE"
 harness_status=$?
 set -e
+
+# Kept on the way out, whatever the way out is: the failing session is the one
+# somebody will want to read, and by then the exit status and the role's
+# document say how it ended. Best effort — capture never changes the status
+# (agent-tracing.spec.md — Capturing a Trace Never Decides a Run).
+capture_trace() {
+  local status=$?
+  node "${CAPTURE_TRACE:-$SCRIPT_DIR/lib/capture-trace.js}" \
+    "$TRACE_FILE" "$TRACES_DIR" "$ROLE" "$status" "${output_doc:-}" || true
+  return "$status"
+}
+trap capture_trace EXIT
 
 [[ -s "$TRACE_FILE" ]] || {
   log "harness produced no output (exit $harness_status)"

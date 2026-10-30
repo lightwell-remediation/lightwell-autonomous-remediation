@@ -16,6 +16,7 @@ before assuming an entry still holds** — all of them were observed at commit
 | 3 | No model slot pinning | all slots pinned in `run-agent.sh` | to propose |
 | 4 | Arbitrary-UID failures only warn | — | to report |
 | 5 | `SKIP_PERMISSIONS=true` in manifests | declarative allowlist | our choice, not a defect |
+| 6 | MLflow tracing is a hook, so it needs hooks enabled | transcript exported after the run, `trace-export.py` | to propose as an option |
 
 ---
 
@@ -82,6 +83,21 @@ container, and it is a defensible default for interactive use.
 This is a **disagreement, not a defect**: a demo whose claim is enterprise
 guardrails cannot start by turning them off, so we deploy without it. Worth
 raising only as feedback on the default.
+
+### 6. MLflow tracing only works where hooks run
+
+`setup_mlflow` in the entrypoint runs `mlflow autolog claude`, which writes a
+Claude Code `Stop` hook. A headless runtime that isolates its sessions with
+`claude --bare` skips hooks, so tracing silently never happens. Setting
+`MLFLOW_TRACKING_URI` still makes the entrypoint write the service account
+token into the Claude settings for that hook.
+
+Ours: the transcript is kept per session and handed after the run to the
+same function the hook calls, `mlflow.claude_code.tracing.process_transcript`
+([ADR-0010](adr/0010-agent-tracing.md)), and no `MLFLOW_*` variable is set on
+agent steps. Worth proposing upstream as a documented post-session mode for
+`--bare` and batch use. Like the other entries, this is the right default for
+the kit's interactive workstation; it is a gap only for headless use.
 
 ---
 

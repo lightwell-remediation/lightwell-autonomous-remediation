@@ -51,6 +51,17 @@ readonly NAMESPACE="${NAMESPACE:-lightwell-agents}"
 readonly CACHE_CLAIM="${CACHE_CLAIM:-lightwell-maven-cache}"
 readonly SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-lightwell-agent}"
 readonly CLAIM_ACCOUNT="${CLAIM_ACCOUNT:-lightwell-run-claim}"
+readonly TRACE_ACCOUNT="${TRACE_ACCOUNT:-lightwell-tracer}"
+
+# The trace task runs under the tracer's identity only where the chart created
+# one, which it does when a backend that needs it is selected (ADR-0010).
+# Elsewhere it runs as the agent and sends nothing.
+trace_spec=""
+if oc get serviceaccount "$TRACE_ACCOUNT" -n "$NAMESPACE" >/dev/null 2>&1; then
+  trace_spec="
+    - pipelineTaskName: trace
+      serviceAccountName: $TRACE_ACCOUNT"
+fi
 readonly STATUS_DIR="$SCRIPT_DIR/../.agent-status"
 readonly OSV_API_URL="${OSV_API_URL:-https://api.osv.dev/v1/vulns}"
 
@@ -166,7 +177,7 @@ spec:
     serviceAccountName: $SERVICE_ACCOUNT
   taskRunSpecs:
     - pipelineTaskName: claim-application
-      serviceAccountName: $CLAIM_ACCOUNT
+      serviceAccountName: $CLAIM_ACCOUNT$trace_spec
   timeouts:
     pipeline: 1h30m0s
   params:

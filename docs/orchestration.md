@@ -36,6 +36,10 @@ straight back. It is a plain command, so it is a Task rather than a session
 ([ADR-0005](adr/0005-determinism-boundary.md)), and it is skipped for an
 application that publishes no inventory.
 
+`trace` runs in `finally`, beside `outcome`, so a failed run is traced too.
+It sends each session's transcript to the configured tracing backend and
+never fails the run ([ADR-0010](adr/0010-agent-tracing.md)).
+
 Only `claim` and `outcome` run on the `cli` image. Everything else uses the
 agent image, including `baseline` and `sbom`, which run no session at all:
 the baseline and the post-change suite are compared against each other, and

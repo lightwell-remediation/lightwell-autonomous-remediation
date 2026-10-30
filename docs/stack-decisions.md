@@ -18,3 +18,7 @@ One-line summaries of Accepted ADRs. Full rationale lives in [`docs/adr/`](adr/)
 - **Cluster bootstrap** — [ADR-0006](adr/0006-cluster-bootstrap-topology.md): GitOps app-of-apps with a Helm chart per component in `deploy/`, mirroring the workshop layout without its per-user fan-out; only the GitOps operator, the credentials and one-shot PipelineRuns stay imperative, and operator-created singletons keep their owner.
 - **Credential delivery** — [ADR-0007](adr/0007-in-cluster-credential-delivery.md): Secrets applied from `secrets/secrets.env` with the same variable names as the local runtime, split per consumer, never in git nor in an ArgoCD Application spec.
 - **Runtime image delivery** — [ADR-0008](adr/0008-agent-runtime-image-delivery.md): two chained BuildConfigs build the image in the cluster from pinned sources into the internal registry, so there is no external registry and no pull credential to own.
+
+## Observability
+
+- **Agent tracing** — [ADR-0010](adr/0010-agent-tracing.md): each session's transcript is kept in the run's workspace and exported after the run by a `finally` task with its own identity; MLflow (RHOAI) is the first, optional backend, OpenTelemetry the next. The starter kit's hook is not used because `claude --bare` skips hooks.

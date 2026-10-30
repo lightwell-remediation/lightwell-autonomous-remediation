@@ -210,24 +210,25 @@ SHALL treat an empty set as success.
 
 ## Where Milestone 1 stands
 
-As of 2026-10-30:
+As of 2026-10-30, implemented on `feat/david/agent-tracing` and tested
+offline (`agent-runtime/test/trace-capture.test.sh`), not yet on a cluster run:
 
 | Requirement | State |
 |---|---|
-| Traces Are Harness-Neutral | **No.** Only Claude Code exists, and nothing records which harness produced a log. |
-| Every Session Leaves a Trace | **Partly.** `run-agent.sh` writes `out/session.jsonl`, but each role overwrites the previous one and the native transcript is never kept. |
-| Capturing a Trace Never Decides a Run | Not applicable yet — nothing is exported. |
-| Export Is Optional and Pluggable | **No.** No backend exists. |
-| Traces Are Grouped by Run and by Role | **No.** |
-| Failed and Cancelled Runs Are Traced | **No.** |
-| No Session Holds Backend Credentials | Vacuously. |
-| Replays Trace Nothing and Do Not Fail | Vacuously. |
+| Every Session Leaves a Trace | Yes — `out/traces/<NN>-<role>.jsonl` plus metadata, from an `EXIT` trap in `run-agent.sh`. |
+| Traces Are Harness-Neutral | **Half.** Every trace names its harness and format and unknown formats are skipped; only the Claude Code reader exists. |
+| Capturing a Trace Never Decides a Run | Yes — capture and export always exit 0; tested against an unreachable backend. |
+| Export Is Optional and Pluggable | Yes — `tracing.exporter` (`none` default in the chart, `mlflow` on the platform bootstrap); `otel` not written. |
+| Traces Are Grouped by Run and by Role | Yes, for MLflow. The candidate suffix is supported but no run has two candidates yet. |
+| Failed and Cancelled Runs Are Traced | Yes — the `trace` task runs in `finally`. |
+| No Session Holds Backend Credentials | Yes — `lightwell-tracer` is bound to the `trace` task only; agent steps carry no `MLFLOW_*`. |
+| Replays Trace Nothing and Do Not Fail | Yes. |
 
 ## Backends
 
 | Backend | Product | State |
 |---|---|---|
-| MLflow | **MLflow** on RHOAI (`MLflow` CR, `lightwell-agents` workspace) | Server deployed, not written to |
+| MLflow | **MLflow** on RHOAI (`MLflow` CR, `lightwell-agents` workspace) | Exporter implemented, pending a cluster run |
 | OpenTelemetry | **Red Hat build of OpenTelemetry** → **Red Hat build of Tempo** (and/or MLflow's OTLP endpoint) | Future |
 
 ## Design Decisions

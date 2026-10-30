@@ -75,9 +75,9 @@ platform:
     channel: latest
     startingCSV: ""
 
-  # MLflow tracking server (wave 0). Not wired to anything in Milestone 1, it is
-  # the Phase 4.5 and Milestone 2 target for agent tracing and the prompt
-  # registry.
+  # MLflow tracking server (wave 0). Receives the agents' session traces when
+  # agents.tracing.exporter is mlflow (ADR-0010); the prompt registry is a
+  # Milestone 2 target.
   mlflow:
     enabled: true
 
@@ -107,6 +107,14 @@ agents:
   remediationPipeline:
     enabled: true
     values: {}
+
+  # Where the traces each agent session leaves are sent once a run ends
+  # (ADR-0010, specs/observability/agent-tracing.spec.md). The pipeline chart
+  # defaults to none; this platform opts in to mlflow because it installs the
+  # MLflow server itself (platform.mlflow). Set none to keep the traces in the
+  # run's workspace only. mlflow requires platform.mlflow.enabled.
+  tracing:
+    exporter: mlflow
 
   # How many sessions have to fit at the same time. Drives the LimitRange
   # maximum and the smoke pipeline, and it is the number to change when the
@@ -139,7 +147,7 @@ agents:
     # Never reused: bump it whenever agent-runtime/ or a pin below changes,
     # with the runtime-image-version skill (scripts/check-image-version.sh
     # holds it to that, and keeps a second copy out of the charts).
-    version: "1.1.0"
+    version: "1.2.0"
     # Pinned together with agent-runtime/build-image.sh. Bump in both places.
     claudeCodeVersion: "2.1.295"
     ghVersion: "2.63.2"

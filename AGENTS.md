@@ -32,7 +32,7 @@ three were cut on 2026-10-20 and live in Milestone 2
 ├─────────────────────────────────────────────────────────────────────┤
 │  REMEDIATION PIPELINE (Tekton)                                       │
 │  analyze → baseline → demonstrate → patch-and-verify → sbom →       │
-│  deliver → outcome                                                   │
+│  deliver → outcome + trace (finally)                                 │
 ├─────────────────────────────────────────────────────────────────────┤
 │  SINGLE REMEDIATION AGENT                                            │
 │  analyze → generate-exploit-test → patch → verify-fix → create-PR   │
@@ -95,6 +95,7 @@ and Developer Hub integration.
 | Pipeline | Tekton (OpenShift Pipelines) ([ADR-0009](docs/adr/0009-tekton-pipeline-orchestration.md)) | One Task per phase, from the vulnerability record to the pull request |
 | Inventory | Syft (in the pipeline) + Red Hat Trusted Profile Analyzer | Regenerate the SBOM from the remediated build and validate it before merge |
 | Vulnerability Detection | Lightwell | Vulnerability scanning and the remediated artifacts |
+| Agent tracing (optional) | MLflow on RHOAI ([ADR-0010](docs/adr/0010-agent-tracing.md)) | Each agent session's trace, one experiment per run, one session per role |
 
 ### Milestone 2 (Post-selection — additions)
 

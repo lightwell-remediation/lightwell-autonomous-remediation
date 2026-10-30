@@ -48,6 +48,7 @@ COPY agent-runtime/run-suite.sh /usr/local/bin/run-suite.sh
 COPY agent-runtime/generate-sbom.sh /usr/local/bin/generate-sbom.sh
 COPY agent-runtime/validate-sbom.sh /usr/local/bin/validate-sbom.sh
 COPY agent-runtime/tpa.sh /usr/local/bin/tpa.sh
+COPY agent-runtime/trace-export.py /usr/local/bin/trace-export.py
 COPY agent-runtime/lib/ /opt/agent-runtime/lib/
 COPY agent-runtime/claude/ /opt/agent-runtime/claude/
 COPY agent-runtime/prompts/ /opt/agent-runtime/prompts/
@@ -61,6 +62,8 @@ ENV SECRETS_FILE=/dev/null \
     CHECK_RESULT=/opt/agent-runtime/lib/check-result.js \
     CHECK_ANALYSIS=/opt/agent-runtime/lib/check-analysis.js \
     TRACE_SUMMARY=/opt/agent-runtime/lib/trace-summary.js \
+    CAPTURE_TRACE=/opt/agent-runtime/lib/capture-trace.js \
+    TRACE_EXPORT=/usr/local/bin/trace-export.py \
     TEST_RESULTS=/opt/agent-runtime/lib/test-results.js \
     CHECK_PATCH=/opt/agent-runtime/lib/check-patch.js \
     CHECK_VERIFICATION=/opt/agent-runtime/lib/check-verification.js \
@@ -86,7 +89,7 @@ ENV SECRETS_FILE=/dev/null \
 RUN mkdir -p /home/claude-agent/.m2 \
  && chmod 0755 /usr/local/bin/run-agent.sh /usr/local/bin/run-suite.sh \
                 /usr/local/bin/generate-sbom.sh /usr/local/bin/validate-sbom.sh \
-                /usr/local/bin/tpa.sh \
+                /usr/local/bin/tpa.sh /usr/local/bin/trace-export.py \
  && chmod 0755 /opt/agent-runtime/lib/api-signatures.sh \
  && chgrp -R 0 /home/claude-agent/.m2 /opt/agent-runtime \
  && chmod -R g=u /home/claude-agent/.m2 \

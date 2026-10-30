@@ -29,6 +29,17 @@ readonly NAMESPACE="${NAMESPACE:-lightwell-agents}"
 readonly CACHE_CLAIM="${CACHE_CLAIM:-lightwell-maven-cache}"
 readonly SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-lightwell-agent}"
 readonly CLAIM_ACCOUNT="${CLAIM_ACCOUNT:-lightwell-run-claim}"
+readonly TRACE_ACCOUNT="${TRACE_ACCOUNT:-lightwell-tracer}"
+
+# The trace task runs under the tracer's identity only where the chart created
+# one, which it does when a backend that needs it is selected (ADR-0010).
+# Elsewhere it runs as the agent and sends nothing.
+trace_spec=""
+if oc get serviceaccount "$TRACE_ACCOUNT" -n "$NAMESPACE" >/dev/null 2>&1; then
+  trace_spec="
+    - pipelineTaskName: trace
+      serviceAccountName: $TRACE_ACCOUNT"
+fi
 readonly STATUS_DIR="$REPO_ROOT/.agent-status"
 readonly TIMEOUT="${TIMEOUT:-600}"
 readonly EXIT_CONFIG=2
@@ -110,7 +121,7 @@ spec:
   # that can. The agent's service account holds no Role, deliberately.
   taskRunSpecs:
     - pipelineTaskName: claim-application
-      serviceAccountName: $CLAIM_ACCOUNT
+      serviceAccountName: $CLAIM_ACCOUNT$trace_spec
   timeouts:
     pipeline: 0h15m0s
   params:

@@ -86,6 +86,38 @@ resources:
     limits:
       cpu: 200m
       memory: 256Mi
+  # The trace export: Python plus the MLflow client, which alone is a few
+  # hundred MiB once imported. The cli budget above is too small for it.
+  trace:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+tracing:
+  # Where the traces each session leaves in out/traces are sent once the run
+  # ends (ADR-0010). "none" sends nothing and creates no identity: the trace
+  # task still runs, says so, and the traces stay in the workspace. "mlflow"
+  # also renders the lightwell-tracer service account; run-remediation.sh and
+  # test-pipeline.sh bind the trace task to it when it exists. "otel" is the
+  # planned next exporter.
+  exporter: none
+  serviceAccount: lightwell-tracer
+  mlflow:
+    # The MLflow CR's in-cluster address (oc get mlflow mlflow
+    # -o jsonpath='{.status.address.url}'), verified with the service CA every
+    # pod has mounted.
+    uri: https://mlflow.redhat-ods-applications.svc:8443/mlflow
+    # The pod's service account token, and the namespace as MLflow workspace.
+    auth: kubernetes-namespaced
+    certPath: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+    # Shipped by the RHOAI MLflow operator: create/update experiments and
+    # traces in the workspace, nothing on the Kubernetes API.
+    clusterRole: mlflow-operator-mlflow-integration
+    maxRetries: "2"
+    requestTimeout: "30"
 
 # Replay fixtures are NOT part of this chart. They are test data, they live
 # with the tests in agent-runtime/test/fixtures/scenarios/, and
