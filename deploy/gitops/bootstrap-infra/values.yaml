@@ -147,7 +147,7 @@ agents:
     # Never reused: bump it whenever agent-runtime/ or a pin below changes,
     # with the runtime-image-version skill (scripts/check-image-version.sh
     # holds it to that, and keeps a second copy out of the charts).
-    version: "1.2.0"
+    version: "1.2.1"
     # Pinned together with agent-runtime/build-image.sh. Bump in both places.
     claudeCodeVersion: "2.1.295"
     ghVersion: "2.63.2"

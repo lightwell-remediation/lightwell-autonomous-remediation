@@ -30,7 +30,9 @@ MLFLOW_WORKSPACE).
 
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -85,6 +87,11 @@ def export_mlflow(traces, run, application, record):
     except ImportError as err:
         log(f"mlflow is not installed ({err}); nothing exported")
         return
+
+    # MLflow's Claude Code integration logs to <cwd>/.claude/mlflow/. A Tekton
+    # step starts in /, which an arbitrary UID cannot write, and every trace
+    # then fails with "Permission denied: '/.claude'".
+    os.chdir(tempfile.mkdtemp(prefix="trace-export-"))
 
     experiment = mlflow.set_experiment(f"lightwell/{run}")
     client = MlflowClient()

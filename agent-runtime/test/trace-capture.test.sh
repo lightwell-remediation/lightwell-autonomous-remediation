@@ -98,7 +98,9 @@ if [[ -n "$PYTHON" ]]; then
            "$PYTHON" "$EXPORT" --exporter mlflow --traces "$TMP/out/traces" --run r 2>&1)"
   check "an unreachable backend is reported and exits 0" grep -q 'export failed' <<<"$out"
 
-  ( cd "$TMP" && MLFLOW_TRACKING_URI="sqlite:///$TMP/mlflow.db" \
+  # From /, as a Tekton step starts: the MLflow integration writes a log
+  # under the working directory, and / is not writable there or here.
+  ( cd / && MLFLOW_TRACKING_URI="sqlite:///$TMP/mlflow.db" \
       "$PYTHON" "$EXPORT" --exporter mlflow --traces "$TMP/out/traces" --run remediate-test \
       --application demo >"$TMP/export.log" 2>&1 )
   check "the stream-format trace is skipped, not guessed at" grep -q "no MLflow reader for format 'claude-code-stream-json'" "$TMP/export.log"

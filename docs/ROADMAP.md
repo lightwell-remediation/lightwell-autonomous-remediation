@@ -469,7 +469,7 @@ Tasks:
 - [ ] Basic observability (structured agent logs)
 - [ ] MLflow tracing ([ADR-0010](adr/0010-agent-tracing.md)). Implemented on
       `feat/david/agent-tracing`: per-session capture in `out/traces`, a
-      `trace` finally task, optional MLflow exporter, runtime image 1.2.0
+      `trace` finally task, optional MLflow exporter, runtime image 1.2.1
       ([agent-runtime.md](agent-runtime.md) — Observability). Tested offline
       (`agent-runtime/test/trace-capture.test.sh`); pending a real run on the
       cluster
