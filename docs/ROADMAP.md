@@ -467,12 +467,12 @@ Specs (only if implemented):
 
 Tasks:
 - [ ] Basic observability (structured agent logs)
-- [ ] MLflow tracing ([ADR-0010](adr/0010-agent-tracing.md)). Implemented on
+- [x] MLflow tracing ([ADR-0010](adr/0010-agent-tracing.md)), on
       `feat/david/agent-tracing`: per-session capture in `out/traces`, a
       `trace` finally task, optional MLflow exporter, runtime image 1.2.1
-      ([agent-runtime.md](agent-runtime.md) — Observability). Tested offline
-      (`agent-runtime/test/trace-capture.test.sh`); pending a real run on the
-      cluster
+      ([agent-runtime.md](agent-runtime.md) — Observability). Validated
+      2026-10-30 with real run `remediate-mtfzc`: one experiment, a session
+      per role
 - [ ] OpenTelemetry exporter for the same traces (Red Hat build of
       OpenTelemetry → Tempo / MLflow OTLP), ADR-0010 — The OpenTelemetry path
 

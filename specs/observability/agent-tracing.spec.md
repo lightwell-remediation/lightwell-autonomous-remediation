@@ -210,8 +210,9 @@ SHALL treat an empty set as success.
 
 ## Where Milestone 1 stands
 
-As of 2026-10-30, implemented on `feat/david/agent-tracing` and tested
-offline (`agent-runtime/test/trace-capture.test.sh`), not yet on a cluster run:
+As of 2026-10-30, implemented on `feat/david/agent-tracing`, tested offline
+(`agent-runtime/test/trace-capture.test.sh`) and on the cluster with a real
+run (ADR-0010 — Validation):
 
 | Requirement | State |
 |---|---|
@@ -228,7 +229,7 @@ offline (`agent-runtime/test/trace-capture.test.sh`), not yet on a cluster run:
 
 | Backend | Product | State |
 |---|---|---|
-| MLflow | **MLflow** on RHOAI (`MLflow` CR, `lightwell-agents` workspace) | Exporter implemented, pending a cluster run |
+| MLflow | **MLflow** on RHOAI (`MLflow` CR, `lightwell-agents` workspace) | In use on the validation cluster (runtime 1.2.1) |
 | OpenTelemetry | **Red Hat build of OpenTelemetry** → **Red Hat build of Tempo** (and/or MLflow's OTLP endpoint) | Future |
 
 ## Design Decisions

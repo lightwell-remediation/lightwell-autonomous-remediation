@@ -210,9 +210,17 @@ for example through a node-local collector.
   against MLflow 3.12.0 with a sqlite store — one experiment per run, one
   session per role, retries as separate traces in their role's session, an
   unreadable format skipped, an unreachable backend reported with exit 0.
-- Pending: a replay run with export enabled (nothing to send, exit 0) and one
-  real run on the cluster whose experiment shows a session per role, with the
-  `lightwell-tracer` identity against the in-cluster MLflow.
+- 2026-10-30, cluster (runtime 1.2.1, exporter mlflow): the six replay
+  scenarios pass, and their `trace` task runs as `lightwell-tracer` and reports
+  nothing to trace. Real run `remediate-mtfzc` delivered its pull request and
+  exported 5 of 5 traces to experiment `lightwell/remediate-mtfzc`, one session
+  per role (`-analyze`, `-exploit`, `-patch`, `-verify`, `-deliver`), through
+  the in-cluster service with `kubernetes-namespaced` auth.
+- Found on the way: the first real run (1.2.0) captured every trace but
+  exported none, because MLflow's Claude Code integration logs to
+  `<cwd>/.claude/mlflow` and a Tekton step starts in `/`. Fixed in 1.2.1; the
+  test now runs the export from `/`. That run's experiment,
+  `lightwell/remediate-ttzpn`, is left empty: the tracer's role cannot delete.
 
 ## References
 
