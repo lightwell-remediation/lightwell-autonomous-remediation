@@ -46,4 +46,5 @@ Cross-cutting engineering constraints: security, testing, conventions.
 | [`exploit-test-generation.spec.md`](agents/exploit-test-generation.spec.md) | agents | Exploit Test, Demonstration, Reachability | remediation agents | vulnerability-analysis, fix-verification, ADR-0005 |
 | [`pr-creation.spec.md`](agents/pr-creation.spec.md) | agents | Pull Request, Narrative, Delivery | remediation agents | fix-verification, agent-runtime, ADR-0003 |
 | [`pipeline.spec.md`](devsecops/pipeline.spec.md) | devsecops | Trigger, Alert, CI, Bill of Materials, Run Visibility | pipeline, deploy | orchestration-strategy, pr-creation, ADR-0009 |
+| [`agent-tracing.spec.md`](observability/agent-tracing.spec.md) | observability | Trace, Session, Backend, Export | agent-runtime, pipeline | pipeline, orchestration-strategy, agent-runtime, ADR-0009 |
 | [`cluster-bootstrap.spec.md`](platform/cluster-bootstrap.spec.md) | platform | Cluster, Operators, Namespace, Secrets, Runtime Image | deploy/ | agent-runtime, ADR-0006, ADR-0007, ADR-0008 |

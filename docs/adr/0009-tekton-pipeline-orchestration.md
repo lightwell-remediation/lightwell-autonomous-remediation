@@ -203,6 +203,10 @@ worth keeping. So this task runs under its own service account with a Role of ex
 List-then-start is not atomic. The window is milliseconds against runs of minutes.
 Stating that is better than implying a guarantee this does not give.
 
+The same reasoning gives the trace export its own identity, `lightwell-tracer`,
+scoped to MLflow's pseudo-resources; the agent's account still holds no Role
+([ADR-0010](0010-agent-tracing.md), 2026-10-30).
+
 ### The chart is reconciled by ArgoCD (2026-10-27)
 
 The remediation chart was a Helm release applied by hand while it changed

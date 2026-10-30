@@ -461,7 +461,9 @@ Tasks:
 ### Phase 4.5: Nice-to-have (if time permits before submission)
 
 Specs (only if implemented):
-- [ ] `specs/observability/agent-tracing.spec.md`
+- [x] [`specs/observability/agent-tracing.spec.md`](../specs/observability/agent-tracing.spec.md)
+- [x] [ADR-0010](adr/0010-agent-tracing.md): agent tracing — capture in the session,
+      export after the run, MLflow optional, OpenTelemetry later
 
 Tasks:
 - [ ] Basic observability (structured agent logs)
