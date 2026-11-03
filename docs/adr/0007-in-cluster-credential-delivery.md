@@ -85,6 +85,10 @@ The variable names in the cluster are **identical** to the local ones, so
 | `lightwell-repo` | `type`, `url`, `username`, `password`, in `openshift-gitops` | ArgoCD, to read this repository while it is private |
 | `lightwell-lightwell` | `LW_USERNAME`, `LW_PASSWORD`, `LW_MAVEN_REPO_URL`, `LW_OSV_BASE_URL` | the runtime, before the session: Maven resolving the Lightwell repositories, and fetching the vulnerability record. Never the agent. Created only when the values are set (path A) |
 
+Since 2026-11-03 `APP_REPO` is the default repository only: a run names its
+own with the `repository` parameter, so runs against different applications
+can proceed together ([ADR-0011](./0011-target-repository-run-parameter.md)).
+
 The split is what keeps the Phase 3 question open as a mount decision: a trigger
 task can read `lightwell-lightwell` without the agent step ever seeing it, and
 the agent step gets `lightwell-maas` without the trigger holding the model key.
@@ -164,6 +168,7 @@ exists.
 
 - [ADR-0003: Agent Runtime Packaging and Credential Model](./0003-agent-runtime-packaging-and-credentials.md)
 - [ADR-0006: Cluster Bootstrap Topology](./0006-cluster-bootstrap-topology.md)
+- [ADR-0011: The Target Repository Is a Run Parameter](./0011-target-repository-run-parameter.md)
 
 ## References
 

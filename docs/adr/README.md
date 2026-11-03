@@ -16,6 +16,7 @@ This directory contains all Architecture Decision Records (ADRs) for the Lightwe
 | [0008](0008-agent-runtime-image-delivery.md) | Agent Runtime Image Delivery | Accepted | Platform | 2026-10-15 |
 | [0009](0009-tekton-pipeline-orchestration.md) | Orchestrate the Remediation Sequence as a Tekton Pipeline | Accepted | Agents | 2026-10-17 |
 | [0010](0010-agent-tracing.md) | Capture Agent Traces in the Session, Export Them After the Run | Accepted | Observability | 2026-10-30 |
+| [0011](0011-target-repository-run-parameter.md) | The Target Repository Is a Run Parameter | Accepted | Agents | 2026-11-03 |
 
 ## Process
 

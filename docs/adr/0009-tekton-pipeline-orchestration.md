@@ -200,6 +200,10 @@ deliberately holds no Role — the agent does not talk to the API, and that is a
 worth keeping. So this task runs under its own service account with a Role of exactly
 `get`/`list` on `pipelineruns`, on an `ose-cli` image rather than the agent image.
 
+The lock is per application on purpose: runs against different applications
+proceed together, each against the repository its request names
+([ADR-0011](0011-target-repository-run-parameter.md), 2026-11-03).
+
 List-then-start is not atomic. The window is milliseconds against runs of minutes.
 Stating that is better than implying a guarantee this does not give.
 

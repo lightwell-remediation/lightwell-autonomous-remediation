@@ -11,6 +11,7 @@ One-line summaries of Accepted ADRs. Full rationale lives in [`docs/adr/`](adr/)
 - **Milestone 1 harness** — [ADR-0002](adr/0002-claude-code-maas-harness.md): Claude Code with inference via Red Hat MaaS (`claude-sonnet-4-6`, Anthropic `/v1/messages`).
 - **Determinism boundary** — [ADR-0005](adr/0005-determinism-boundary.md): whatever a script can produce, a script produces before the session starts; the agent is left the judgement. Measured: moving the dependency tree and the bill of materials out of the session took a run from repeated failure to green in ~3 minutes, and reduced the agent's permissions to reading plus one output file.
 - **Orchestration** — [ADR-0009](adr/0009-tekton-pipeline-orchestration.md): a Tekton Pipeline, one Task per phase, gated by `when` expressions on the previous phase's terminal state; the bounded retry is `retries: 1` on a combined patch-and-verify Task. Not a coordinating agent — the sequencing contains no judgement, and a model deciding what runs next could not be replayed against recorded documents in seconds. RHOAI AI Pipelines was examined and set aside: KFP v2 has no loop or recursion either, and it is the product for ML workflows.
+- **Concurrent runs** — [ADR-0011](adr/0011-target-repository-run-parameter.md): the target repository is a run parameter, so runs against different applications proceed together; one PAT scoped to every target, Maven Resolver `file-lock` on the shared cache.
 
 ## Platform
 
