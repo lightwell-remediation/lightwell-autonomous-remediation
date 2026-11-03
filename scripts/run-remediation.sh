@@ -20,8 +20,19 @@
 #
 # Usage:
 #   run-remediation.sh <osv-file|url|lightwell-id|osv-id> [--vulnerability <id>]
-#                      [--branch <name>] [--model <id>] [--image <ref>]
-#                      [--no-follow]
+#                      [--repo <owner/repo>] [--branch <name>] [--model <id>]
+#                      [--image <ref>] [--no-follow]
+#
+# --repo names the application to remediate. Default: APP_REPO from the
+# lightwell-github Secret. Runs against different repositories may run at the
+# same time — one per application, the lock refuses a second (ADR-0011) — so
+# one advisory reaching several applications is several invocations:
+#
+#   for app in acme/orders acme/billing; do
+#     run-remediation.sh GHSA-hfrx-6qgj-fp6c --repo "$app" --no-follow
+#   done
+#
+# The token in lightwell-github must reach every repository named this way.
 #
 # --image runs this one remediation on another runtime image, typically a
 # wip- build from build-runtime-image.sh --from-dir. The Pipeline's own image
@@ -72,6 +83,7 @@ OSV=""
 MODEL=""
 IMAGE=""
 VULNERABILITY=""
+REPO=""
 BRANCH="${APP_BRANCH:-}"
 FOLLOW=1
 while [ $# -gt 0 ]; do
@@ -79,9 +91,10 @@ while [ $# -gt 0 ]; do
     --model)     MODEL="${2:?--model needs a value}"; shift 2 ;;
     --image)     IMAGE="${2:?--image needs a value}"; shift 2 ;;
     --branch)    BRANCH="${2:?--branch needs a value}"; shift 2 ;;
+    --repo)      REPO="${2:?--repo needs a value}"; shift 2 ;;
     --vulnerability) VULNERABILITY="${2:?--vulnerability needs a value}"; shift 2 ;;
     --no-follow) FOLLOW=0; shift ;;
-    -h|--help)   sed -n '2,45p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,56p' "$0"; exit 0 ;;
     -*)          die "unknown argument: $1" ;;
     *)           OSV="$1"; shift ;;
   esac
@@ -91,11 +104,17 @@ done
 command -v oc >/dev/null || die "oc is not installed"
 oc whoami >/dev/null 2>&1 || die "not logged in to a cluster"
 
-# The application comes from the Secret the agent already reads, so there is
-# one place it is configured and the label cannot drift from the param.
-application="$(oc get secret lightwell-github -n "$NAMESPACE" \
-  -o go-template='{{index .data "APP_REPO" | base64decode}}' 2>/dev/null)"
-[ -n "$application" ] || die "APP_REPO is not set in the lightwell-github Secret"
+# The application is the request's, or the Secret's default. Either way it is
+# one value, and both the lock label and the repository param are derived from
+# it below, so the run cannot lock one application and clone another.
+application="$REPO"
+if [ -z "$application" ]; then
+  application="$(oc get secret lightwell-github -n "$NAMESPACE" \
+    -o go-template='{{index .data "APP_REPO" | base64decode}}' 2>/dev/null)"
+  [ -n "$application" ] || die "no --repo given and APP_REPO is not set in the lightwell-github Secret"
+fi
+[[ "$application" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+  || die "the repository must be owner/repo, not: $application"
 
 for required in lightwell-maas lightwell-github; do
   oc get secret "$required" -n "$NAMESPACE" >/dev/null 2>&1 \
@@ -145,7 +164,11 @@ else
 fi
 # A label value cannot contain '/' or uppercase, and the claim lists on it.
 label="$(printf '%s' "$application" | tr 'A-Z/' 'a-z-' | cut -c1-63)"
-cm="osv-$(printf '%s' "${record%.json}" | tr 'A-Z_.' 'a-z--' | cut -c1-55)"
+# Per application as well as per record: runs for the same advisory against
+# different applications are concurrent, and recreating a shared ConfigMap
+# would pull the record out from under a run still mounting it.
+app_hash="$(printf '%s' "$application" | sha256sum | cut -c1-8)"
+cm="osv-$(printf '%s' "${record%.json}" | tr 'A-Z_.' 'a-z--' | cut -c1-46)-$app_hash"
 
 osv_workspace=""
 if [ "$source_kind" = file ]; then
@@ -183,6 +206,8 @@ spec:
   params:
     - name: application
       value: $label
+    - name: repository
+      value: "$application"
     - name: osv
       value: "$osv_param"
     - name: vulnerability

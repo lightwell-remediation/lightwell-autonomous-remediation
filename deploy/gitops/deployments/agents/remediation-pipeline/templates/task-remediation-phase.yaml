@@ -40,6 +40,12 @@ spec:
         (orchestration-strategy.spec.md — Producing a Candidate Is Separable
         From Delivering It).
       default: ""
+    - name: repository
+      type: string
+      description: >-
+        owner/repo to clone and deliver to. Empty means APP_REPO from the
+        Secret (ADR-0011).
+      default: ""
     - name: app-branch
       type: string
       description: >-
@@ -142,6 +148,7 @@ spec:
           [ -n "$osv" ]            && args+=(--osv "$osv")
           [ -n "$(params.vulnerability)" ] && args+=(--vulnerability "$(params.vulnerability)")
           [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
+          [ -n "$(params.repository)" ] && args+=(--repo "$(params.repository)")
           [ "$(params.clone)" = "true" ] || args+=(--no-clone)
           [ -n "$(params.app-branch)" ] && args+=(--branch "$(params.app-branch)")
 

@@ -36,9 +36,19 @@ spec:
     - name: application
       type: string
       description: >-
-        The repository being remediated, as owner/repo. Also the key the
-        one-run-per-application claim is taken on, so it must match the label
-        on the PipelineRun.
+        The key the one-run-per-application claim is taken on: the repository
+        as a label value (lowercase, '/' as '-'), so it must match the
+        lightwell.dev/application label on the PipelineRun. Derived from the
+        same input as repository, so the two cannot name different
+        applications.
+    - name: repository
+      type: string
+      description: >-
+        The repository every phase clones, patches and delivers to, as
+        owner/repo. A property of the request rather than of the deployment,
+        so runs against different applications can proceed at the same time
+        (ADR-0011). Empty means APP_REPO from the lightwell-github Secret.
+      default: ""
     - name: app-branch
       type: string
       description: >-
@@ -118,6 +128,8 @@ spec:
           value: $(params.vulnerability)
         - name: model
           value: $(params.model)
+        - name: repository
+          value: $(params.repository)
         - name: clone
           value: "true"
         - name: app-branch
@@ -196,6 +208,8 @@ spec:
           value: $(params.osv)
         - name: model
           value: $(params.model)
+        - name: repository
+          value: $(params.repository)
         - name: replay
           value: $(params.replay)
         - name: cache-claim
@@ -227,6 +241,8 @@ spec:
           value: $(params.osv)
         - name: model
           value: $(params.model)
+        - name: repository
+          value: $(params.repository)
         - name: replay
           value: $(params.replay)
         - name: cache-claim
@@ -295,6 +311,8 @@ spec:
           value: $(params.osv)
         - name: model
           value: $(params.model)
+        - name: repository
+          value: $(params.repository)
         - name: replay
           value: $(params.replay)
         - name: cache-claim

@@ -23,6 +23,12 @@ spec:
     - name: model
       type: string
       default: ""
+    - name: repository
+      type: string
+      description: >-
+        owner/repo the run works on. Empty means APP_REPO from the Secret
+        (ADR-0011).
+      default: ""
     - name: replay
       type: string
       default: "false"
@@ -103,6 +109,7 @@ spec:
           args=(--role patch --no-clone)
           [ -n "$osv" ]            && args+=(--osv "$osv")
           [ -n "$(params.model)" ] && args+=(--model "$(params.model)")
+          [ -n "$(params.repository)" ] && args+=(--repo "$(params.repository)")
 
           # One reply over the output cap refuses the request and ends the
           # session (agent-runtime.md — Known limitations). That is the model
@@ -185,7 +192,9 @@ spec:
           node "${CHECK_VERIFICATION:-/opt/agent-runtime/lib/check-verification.js}" \
             "$OUT/verification.json" || status=$?
         else
-          entrypoint.sh /usr/local/bin/run-agent.sh --role verify --no-clone || status=$?
+          args=(--role verify --no-clone)
+          [ -n "$(params.repository)" ] && args+=(--repo "$(params.repository)")
+          entrypoint.sh /usr/local/bin/run-agent.sh "${args[@]}" || status=$?
         fi
 
         state="$(state_of "$OUT/verification.json")"

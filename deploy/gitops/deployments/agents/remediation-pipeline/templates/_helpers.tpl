@@ -28,6 +28,13 @@ env:
     value: /home/claude-agent
   - name: MAX_TURNS
     value: {{ .Values.agent.maxTurns | quote }}
+  # The cache is shared by concurrent runs, and Maven Resolver's default lock
+  # (rwlock-local) only coordinates threads inside one JVM: two pods writing
+  # the same cold entry would race on a partial download. file-lock takes
+  # POSIX advisory locks on the volume itself, and file-gav is the only name
+  # mapper it works with (ADR-0011).
+  - name: MAVEN_OPTS
+    value: {{ .Values.cache.mavenOpts | quote }}
 {{- end -}}
 
 {{/*

@@ -59,6 +59,13 @@ cache:
   # against different applications queuing on the volume.
   accessMode: ReadWriteMany
   size: 20Gi
+  # Cross-process locking for the shared local repository, so concurrent runs
+  # do not corrupt each other's downloads. Needs a volume with POSIX advisory
+  # locks (CephFS has them). Maven Resolver 1.9.x, as in Maven 3.9:
+  # https://maven.apache.org/resolver-archives/resolver-1.9.22/configuration.html
+  mavenOpts: >-
+    -Daether.syncContext.named.factory=file-lock
+    -Daether.syncContext.named.nameMapper=file-gav
 
 agent:
   # The session's turn budget. Not a credential, so it does not travel in a
