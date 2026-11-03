@@ -221,6 +221,49 @@ and manages its candidates underneath.
 - THEN it is refused before doing anything
 - AND the run in progress is unaffected
 
+### Requirement: Concurrent Runs on Different Applications
+
+The orchestration SHALL let runs against different applications proceed at
+the same time, and each run SHALL clone, patch and deliver against the
+repository named in its own request — never against a value shared by every
+run of the deployment.
+
+The lock above is per application, and that is the point of it: one
+vulnerability usually reaches many applications at once, and remediating them
+one after another turns a fix that takes minutes per repository into hours for
+the estate. A deployment-wide repository would let the lock admit two runs
+that then work on the same repository, which is exactly the collision the lock
+exists to prevent, without it noticing.
+
+The repository a run works on and the key it locks on SHALL be derived from
+the same input, so they cannot name different applications.
+
+Where to take the repository from is a decision recorded in
+[ADR-0011](../../docs/adr/0011-target-repository-run-parameter.md).
+
+#### Scenario: Two Applications With the Same Vulnerability
+
+- GIVEN two applications with different code, affected by the same
+  vulnerability
+- WHEN a run is started against each at the same time
+- THEN neither is refused by the other's lock
+- AND each clones only its own repository
+- AND each delivers at most one pull request, to its own repository
+
+#### Scenario: The Request Names the Repository, Not the Deployment
+
+- GIVEN a deployment whose credentials also carry a default repository
+- WHEN a run is started naming a different repository
+- THEN the run clones, patches and delivers against the repository it names
+- AND the default is not touched
+
+#### Scenario: A Repository the Credentials Cannot Reach
+
+- GIVEN a run naming a repository the deployment's token has no access to
+- WHEN the run clones
+- THEN it fails before any session starts, naming the repository
+- AND no other run is affected
+
 ### Requirement: Two Lifetimes, Two Volumes
 
 A run SHALL use two separate stores, with different lifetimes:
@@ -248,7 +291,17 @@ worth doing before anyone is watching rather than during a demonstration.
 Because the cache is shared across runs — and, where different applications
 run concurrently, across applications — an implementation SHALL NOT assume
 exclusive use of it. Concurrent reads of a warm cache are safe; two runs
-populating the same cold entry can race on a partial download.
+populating the same cold entry can race on a partial download, so writes to
+the cache SHALL be serialised across runs, not only within one.
+
+#### Scenario: Two Runs Populate a Cold Cache Together
+
+- GIVEN an empty dependency cache
+- WHEN two runs against different applications sharing dependencies build at
+  the same time
+- THEN each dependency is downloaded and written once, under a lock both runs
+  respect
+- AND neither build fails on a partially written file
 
 #### Scenario: The Workspace Starts Empty
 
@@ -399,3 +452,6 @@ nothing above depends on how it went.
 - Pipeline tasks versus a coordinating agent:
   [ADR-0009](../../docs/adr/0009-tekton-pipeline-orchestration.md), which also
   records why RHOAI AI Pipelines and Argo Workflows were set aside
+- Where a run takes its target repository from, so that runs against different
+  applications can proceed concurrently:
+  [ADR-0011](../../docs/adr/0011-target-repository-run-parameter.md)
