@@ -475,6 +475,12 @@ Tasks:
       per role
 - [ ] OpenTelemetry exporter for the same traces (Red Hat build of
       OpenTelemetry → Tempo / MLflow OTLP), ADR-0010 — The OpenTelemetry path
+- [ ] Concurrent runs on different applications
+      ([ADR-0011](adr/0011-target-repository-run-parameter.md),
+      [spec](../specs/agents/orchestration-strategy.spec.md) — Concurrent Runs
+      on Different Applications): `repository` run parameter,
+      `run-remediation.sh --repo`, Maven Resolver `file-lock` on the shared
+      cache. Pending cluster validation
 
 ### Out of scope for Milestone 1
 

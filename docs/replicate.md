@@ -261,12 +261,22 @@ an empty cache. The cache is a PVC kept across runs and across
 `helm uninstall`, so warm it with one run before a demo
 ([measurements](measurements/pipeline-runs-2026-10-17.md)).
 
-**Both paths on one cluster.** The namespace remediates one application at a
-time: `APP_REPO` and the token live in a single Secret, `lightwell-github`,
-read when each phase starts. Run the paths one after the other, never
-together, and switch between them by editing `APP_REPO` and `GITHUB_TOKEN` in
-`secrets/secrets.env` and running `scripts/push-secrets.sh` again. One
-fine-grained PAT scoped to both copies avoids swapping the token.
+**Several applications on one cluster.** A run names its application with
+`--repo owner/repo`; without it, `APP_REPO` from the `lightwell-github` Secret
+is used ([ADR-0011](adr/0011-target-repository-run-parameter.md)). Runs
+against different applications — both paths, or one advisory that reaches
+several applications — can run at the same time; a second run against the
+same application is refused by the claim. Scope the one fine-grained PAT to
+every repository you name:
+
+```bash
+for app in <you>/<app-a> <you>/<app-b>; do
+  scripts/run-remediation.sh GHSA-hfrx-6qgj-fp6c --repo "$app" --no-follow
+done
+```
+
+Each concurrent run is one more agent pod (up to 2 CPU / 6 GiB) and one more
+MaaS session; size the parallelism to the cluster and the gateway's limits.
 
 ## Limitations of Milestone 1
 
