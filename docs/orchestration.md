@@ -120,7 +120,7 @@ try it on one run.
 ## A real run
 
 ```bash
-scripts/run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2                 # path A
+scripts/run-remediation.sh RHLW-2026-2d8697b26ccd16c3 --vulnerability CVE-2026-68079  # path A
 scripts/run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json  # path B
 ```
 
