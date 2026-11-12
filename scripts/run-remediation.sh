@@ -11,9 +11,13 @@
 #   a URL           fetched in the cluster by the first phase, with the
 #                   Lightwell credentials where they are set. The agent never
 #                   sees them.
-#   a Lightwell id  x_RHLW-CVE-2026-68079-4.2.2 — turned into a URL under
+#   a Lightwell id  RHLW-2026-2d8697b26ccd16c3 — turned into a URL under
 #                   LW_OSV_BASE_URL from the lightwell-lightwell Secret, and
-#                   fetched as above. The CVE in it becomes --vulnerability.
+#                   fetched as above. Lightwell names records by hash now, so
+#                   the id no longer carries the CVE: pass --vulnerability. The
+#                   older x_RHLW-CVE-2026-68079-4.2.2 form still works and its
+#                   CVE becomes --vulnerability. scripts/find-lightwell-record.sh
+#                   finds the id for a CVE.
 #   an OSV id       GHSA-hfrx-6qgj-fp6c, or a file named after one that is not
 #                   on disk — fetched from the public OSV registry
 #                   (OSV_API_URL, osv.dev by default), no credentials.
@@ -36,7 +40,7 @@
 # vulnerable code is actually reachable, lives on a branch of its own.
 #
 # Examples:
-#   run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2
+#   run-remediation.sh RHLW-2026-2d8697b26ccd16c3 --vulnerability CVE-2026-68079
 #   run-remediation.sh deploy/pipelineruns/osv/GHSA-hfrx-6qgj-fp6c.json
 #
 # Exit status:
@@ -113,12 +117,12 @@ osv_id="$(basename "$OSV" .json)"
 case "$OSV" in
   http://*|https://*) source_kind="url" ;;
   *) if [ -e "$OSV" ]; then source_kind="file"
-     elif [[ "$OSV" =~ ^x_RHLW-[A-Za-z0-9.-]+$ ]]; then source_kind="lightwell"
+     elif [[ "$OSV" =~ ^(x_)?RHLW-[A-Za-z0-9.-]+$ ]]; then source_kind="lightwell"
      elif [[ "$osv_id" =~ ^[A-Z][A-Za-z0-9]*-[A-Za-z0-9.-]+$ ]]; then
        log "$OSV is not on disk — fetching $osv_id from $OSV_API_URL"
        OSV="${OSV_API_URL%/}/$osv_id"
        source_kind="url"
-     else die "vulnerability record not found: $OSV (a file, a URL, a Lightwell id such as x_RHLW-CVE-2026-68079-4.2.2, or an OSV id such as GHSA-hfrx-6qgj-fp6c)"
+     else die "vulnerability record not found: $OSV (a file, a URL, a Lightwell id such as RHLW-2026-2d8697b26ccd16c3, or an OSV id such as GHSA-hfrx-6qgj-fp6c)"
      fi ;;
 esac
 [ "$source_kind" != file ] || [ -r "$OSV" ] || die "vulnerability record not readable: $OSV"
@@ -127,11 +131,14 @@ if [ "$source_kind" = lightwell ]; then
   base="$(oc get secret lightwell-lightwell -n "$NAMESPACE" \
     -o go-template='{{with index .data "LW_OSV_BASE_URL"}}{{. | base64decode}}{{end}}' 2>/dev/null)"
   [ -n "$base" ] || die "LW_OSV_BASE_URL is not set in the lightwell-lightwell Secret — scripts/push-secrets.sh lightwell"
-  # The id carries the CVE: x_RHLW-CVE-2026-68079-4.2.2. The record served
-  # under it may bundle that CVE's siblings, so the run says which one it is.
+  # The older id carries the CVE (x_RHLW-CVE-2026-68079-4.2.2), the hash id
+  # does not. The record may bundle that CVE's siblings, so the run says which
+  # one it is.
   if [ -z "$VULNERABILITY" ] && [[ "$OSV" =~ (CVE-[0-9]{4}-[0-9]+) ]]; then
     VULNERABILITY="${BASH_REMATCH[1]}"
   fi
+  [ -n "$VULNERABILITY" ] \
+    || echo "run-remediation: $OSV names no CVE; without --vulnerability the analysis is not held to one of the CVEs the record bundles" >&2
   OSV="${base%/}/$OSV.json"
   source_kind="url"
 fi

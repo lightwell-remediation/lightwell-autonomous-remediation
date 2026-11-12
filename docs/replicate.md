@@ -214,16 +214,23 @@ it as a ConfigMap, so it does not depend on any record source being reachable
 from the cluster.
 
 **Path A.** The pipeline fetches the record from Lightwell itself, with the
-credentials from step 2. Name it by its Lightwell id:
+credentials from step 2. Name it by its Lightwell id. Lightwell publishes
+records by hash (`RHLW-2026-<hash>`), so first find the one for your CVE and the
+version you build against; the script prints only record names, never the
+credentials or the URL:
 
 ```bash
-scripts/run-remediation.sh x_RHLW-CVE-2026-68079-4.2.2
+scripts/find-lightwell-record.sh CVE-2026-68079
+scripts/run-remediation.sh RHLW-2026-2d8697b26ccd16c3 --vulnerability CVE-2026-68079
 ```
+
+The older `x_RHLW-CVE-2026-68079-4.2.2` form no longer exists on the server (404). The script still accepts that form, but a run with it
+fails in `analyze`.
 
 The first phase downloads it into the run's workspace and every later phase
 reads that copy; the agent never sees the credentials. The record Lightwell
-serves is one advisory for every CVE the rebuild fixes — four here — so the
-script takes the CVE from the id and the analysis is held to it. A record you
+serves is one advisory for every CVE the rebuild fixes — four here — so
+`--vulnerability` is what holds the analysis to one CVE. A record you
 already have on disk works as on path B.
 
 **Path B.** The record is public (osv.dev) and committed here:
