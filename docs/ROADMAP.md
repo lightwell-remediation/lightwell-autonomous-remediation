@@ -475,12 +475,37 @@ Tasks:
       per role
 - [ ] OpenTelemetry exporter for the same traces (Red Hat build of
       OpenTelemetry → Tempo / MLflow OTLP), ADR-0010 — The OpenTelemetry path
+- [ ] MLflow trace timelines are wrong: every session shows a latency of about
+      10s and the span bars sit at synthetic offsets (`tool_Read` 8.00ms), while
+      the real sessions take minutes. Seen 2026-11-13 on a trace of run
+      `remediate-hrhvs` (MLflow 3.14.0 on RHOAI 3.5, experiment 3). Not
+      investigated. Starting point, unverified:
+      `agent-runtime/trace-export.py` hands each transcript to
+      `mlflow.claude_code.tracing.process_transcript` after the session ended,
+      so the timestamps come from the transcript or are made up by that reader.
+      Check whether the transcript lines carry real timestamps, whether the
+      reader uses them, and if not, set the span times from them (or from
+      `out/session.log`) before export. Matters for the demo video, where the
+      timeline is on screen
 - [ ] Concurrent runs on different applications
       ([ADR-0011](adr/0011-target-repository-run-parameter.md),
       [spec](../specs/agents/orchestration-strategy.spec.md) — Concurrent Runs
       on Different Applications): `repository` run parameter,
       `run-remediation.sh --repo`, Maven Resolver `file-lock` on the shared
       cache. Pending cluster validation
+- [ ] Align the `exploit` agent role with the `demonstrate` Tekton task. The
+      MLflow session is named after the role (`<run>-exploit`) while the
+      Pipelines console shows the task (`demonstrate`), so the two views of the
+      same phase disagree on screen. Rename only the role identifier
+      (`KNOWN_ROLES` and the role lists in `run-agent.sh`, `prompts/exploit.md`,
+      `claude/settings.exploit.json`, the `role` param in the Pipeline and the
+      `remediation-phase` Task gate, `scripts/remediate.sh`, ADR-0010 and
+      [agent-runtime.md](agent-runtime.md)); keep `exploit.json`,
+      `check-exploit.js` and "exploit test", which name the artifact, not the
+      role. Needs a runtime image version bump
+      ([`runtime-image-version`](../.agents/skills/runtime-image-version/SKILL.md))
+      and a new run to confirm the session name. Tried and reverted on
+      2026-11-12; the four gate tests it touches passed
 
 ### Out of scope for Milestone 1
 
@@ -650,6 +675,21 @@ Tasks:
 - [ ] Implement merge/combination logic when the judge requests it
 - [ ] Implement Orchestrator: trigger → (Agent A ‖ Agent B) → Judge → final PR
 - [ ] Validate that divergent agents produce better results than a single one
+- [ ] **Checklist de fiabilidad en prompts de agentes** (posible mejora a evaluar):
+      Añadir un checklist que el agente de `patch` lea antes de aplicar un parche,
+      con red flags de seguridad (ej: eliminar validación de input → ⛔ parar;
+      cambios en autenticación → verificar que no degrada seguridad). No incluye
+      validación de CVEs nuevos, ya que eso se hace a posteriori cuando se
+      regenera el SBOM. Inspirado en el checklist de fiabilidad de 39 items del
+      equipo de Claude Code (https://claude.dev/blog/how-the-claude-code-team-thinks-about-verification/)
+- [ ] **Tracking de misses** (posible mejora a evaluar): Trackear PRs de
+      remediación rechazados por revisores humanos, extraer patrones de fallo y
+      actualizar prompts de agentes. Registrar en MLflow (ADR-0010) con tag
+      `outcome: rejected` + motivo. Implementar proceso de "turn misses into
+      rules": si ≥2 PRs fallan por el mismo patrón y es detectable desde el diff,
+      añadirlo al checklist de fiabilidad o al prompt del agente. Inspirado en
+      la estrategia del equipo de Claude Code para mejorar verificación
+      iterativamente
 
 ### Phase 7: Developer Hub + Full Pipeline
 
