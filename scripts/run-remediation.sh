@@ -108,6 +108,15 @@ done
 command -v oc >/dev/null || die "oc is not installed"
 oc whoami >/dev/null 2>&1 || die "not logged in to a cluster"
 
+# A GitHub App installation token lasts one hour, and a run can start long after
+# the one that minted it. With the App configured and no --repo, mint a fresh one
+# for the APP_REPO in secrets.env and update the Secret. A --repo run is left
+# alone: the token is scoped to the repository it was minted for.
+if [ -z "$REPO" ] && [ -r "$(dirname "${BASH_SOURCE[0]}")/../secrets/github-app.env" ]; then
+  "$(dirname "${BASH_SOURCE[0]}")/provision-app-repo.sh" --refresh \
+    || die "could not refresh the GitHub token (scripts/provision-app-repo.sh --refresh)"
+fi
+
 # The application is the request's, or the Secret's default. Either way it is
 # one value, and both the lock label and the repository param are derived from
 # it below, so the run cannot lock one application and clone another.

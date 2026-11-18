@@ -48,3 +48,4 @@ Cross-cutting engineering constraints: security, testing, conventions.
 | [`pipeline.spec.md`](devsecops/pipeline.spec.md) | devsecops | Trigger, Alert, CI, Bill of Materials, Run Visibility | pipeline, deploy | orchestration-strategy, pr-creation, ADR-0009 |
 | [`agent-tracing.spec.md`](observability/agent-tracing.spec.md) | observability | Trace, Session, Backend, Export | agent-runtime, pipeline | pipeline, orchestration-strategy, agent-runtime, ADR-0009 |
 | [`cluster-bootstrap.spec.md`](platform/cluster-bootstrap.spec.md) | platform | Cluster, Operators, Namespace, Secrets, Runtime Image | deploy/ | agent-runtime, ADR-0006, ADR-0007, ADR-0008 |
+| [`app-repo-provisioning.spec.md`](platform/app-repo-provisioning.spec.md) | platform | Application Repository, Template, GitHub App, Installation Token | scripts/provision-app-repo.sh | cluster-bootstrap, agent-runtime, ADR-0003, ADR-0007, ADR-0012 |

@@ -19,6 +19,7 @@ One-line summaries of Accepted ADRs. Full rationale lives in [`docs/adr/`](adr/)
 - **Cluster bootstrap** — [ADR-0006](adr/0006-cluster-bootstrap-topology.md): GitOps app-of-apps with a Helm chart per component in `deploy/`, mirroring the workshop layout without its per-user fan-out; only the GitOps operator, the credentials and one-shot PipelineRuns stay imperative, and operator-created singletons keep their owner.
 - **Credential delivery** — [ADR-0007](adr/0007-in-cluster-credential-delivery.md): Secrets applied from `secrets/secrets.env` with the same variable names as the local runtime, split per consumer, never in git nor in an ArgoCD Application spec.
 - **Runtime image delivery** — [ADR-0008](adr/0008-agent-runtime-image-delivery.md): two chained BuildConfigs build the image in the cluster from pinned sources into the internal registry, so there is no external registry and no pull credential to own.
+- **Application repository and token (Proposed)** — [ADR-0012](adr/0012-per-deployment-app-repo-and-github-app-token.md): a private copy of the template per deployment, and a one-hour GitHub App token scoped to that copy, both created by `scripts/provision-app-repo.sh`.
 
 ## Observability
 

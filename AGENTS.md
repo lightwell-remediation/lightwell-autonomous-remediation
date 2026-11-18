@@ -136,6 +136,7 @@ Project-level skills live in `.agents/skills/` (read natively by Codex and Curso
 | `cluster-bootstrap` | Deploy the platform on OpenShift (`deploy/`) |
 | `secrets-setup` | Create/validate `secrets/secrets.env` before deploy |
 | `openshift-mcp` | Any OpenShift/Kubernetes cluster operation — prefer MCP over `oc`/`kubectl` |
+| `provision-app-repo` | New deployment: private app repo from the template + repo-scoped GitHub token; renew an expired token |
 | `no-secrets` | Scan for credentials before commit or PR |
 | `adr` | Create or update an Architecture Decision Record |
 | `create-pr` | Create pull requests with Summary/Details/Test plan |

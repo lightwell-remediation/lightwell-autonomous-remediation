@@ -133,5 +133,6 @@ same configuration. Provisioning that Secret is a Phase 0.5 task; see
 
 ## Related skills
 
+- `provision-app-repo` creates the per-deployment `APP_REPO` and mints `GITHUB_TOKEN` (no PAT by hand)
 - Scan before commit: `no-secrets`
 - Deploy platform: `cluster-bootstrap`

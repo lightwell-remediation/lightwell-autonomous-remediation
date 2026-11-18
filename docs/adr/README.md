@@ -17,6 +17,7 @@ This directory contains all Architecture Decision Records (ADRs) for the Lightwe
 | [0009](0009-tekton-pipeline-orchestration.md) | Orchestrate the Remediation Sequence as a Tekton Pipeline | Accepted | Agents | 2026-10-17 |
 | [0010](0010-agent-tracing.md) | Capture Agent Traces in the Session, Export Them After the Run | Accepted | Observability | 2026-10-30 |
 | [0011](0011-target-repository-run-parameter.md) | The Target Repository Is a Run Parameter | Accepted | Agents | 2026-11-03 |
+| [0012](0012-per-deployment-app-repo-and-github-app-token.md) | One Private Repository Per Deployment, Token From a GitHub App | Proposed | Platform | 2026-11-18 |
 
 ## Process
 

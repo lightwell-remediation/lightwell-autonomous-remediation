@@ -78,6 +78,8 @@ gh repo create <you>/<app> --private --template lightwell-remediation/lw-apache-
 gh repo create <you>/<app> --private --template lightwell-remediation/document-intake-service
 ```
 
+**Automated:** the `provision-app-repo` skill does this step and mints the token for it (`scripts/provision-app-repo.sh <name>`, add `--template document-intake-service` for path B; [ADR-0012](adr/0012-per-deployment-app-repo-and-github-app-token.md)). The commands above are what it runs.
+
 Note `<you>/<app>`: it is `APP_REPO` in the next step, and the repository the
 GitHub token is scoped to.
 
