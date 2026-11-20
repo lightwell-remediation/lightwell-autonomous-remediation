@@ -257,6 +257,28 @@ Where to take the repository from is a decision recorded in
 - THEN the run clones, patches and delivers against the repository it names
 - AND the default is not touched
 
+Each run SHALL be able to use a credential of its own application. A
+credential scoped to one repository is the narrowest one that works, and
+runs against different applications must not need one that reaches all of
+them. A deployment MAY still use one credential for every application, as a
+default for applications that have none of their own.
+
+#### Scenario: Each Application Uses Its Own Credential
+
+- GIVEN two applications, each with a credential that reaches only its own
+  repository
+- WHEN a run is started against each at the same time
+- THEN each run clones, pushes and opens its pull request with its own
+  application's credential
+- AND neither run's sessions can reach the other application's repository
+
+#### Scenario: An Application Without a Credential of Its Own
+
+- GIVEN an application with no credential of its own
+- WHEN a run is started against it
+- THEN the run uses the deployment's default credential
+- AND says so before it starts
+
 #### Scenario: A Repository the Credentials Cannot Reach
 
 - GIVEN a run naming a repository the deployment's token has no access to

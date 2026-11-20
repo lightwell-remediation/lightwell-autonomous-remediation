@@ -197,6 +197,15 @@ which is discarded per run by design.
 - THEN the phase it is in and the phases it has finished are visible
 - AND no log needs to be opened to see that
 
+#### Scenario: Concurrent Runs Are Told Apart by Name
+
+- GIVEN several runs in progress for different applications or
+  vulnerabilities
+- WHEN they are listed
+- THEN each run's name says which application and which vulnerability it is
+  for
+- AND two runs for the same pair still have different names
+
 #### Scenario: A Run Is Read a Week Later
 
 - GIVEN a completed run whose workspace is gone
