@@ -79,6 +79,16 @@ scripts/provision-app-repo.sh --refresh
 
 `scripts/run-remediation.sh` does this for you before it starts a run.
 
+A run against another application (`run-remediation.sh --repo <owner/repo>`)
+gets a token minted for that repository alone, into its own Secret
+`lightwell-github-<owner>-<repo>`; secrets.env is not touched. By hand:
+
+```bash
+scripts/provision-app-repo.sh --repo <owner/repo> --secret lightwell-github-<owner>-<repo>
+```
+
+The App must be installed on that repository.
+
 ## 4. Tear down
 
 ```bash

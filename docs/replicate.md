@@ -275,8 +275,21 @@ an empty cache. The cache is a PVC kept across runs and across
 is used ([ADR-0011](adr/0011-target-repository-run-parameter.md)). Runs
 against different applications — both paths, or one advisory that reaches
 several applications — can run at the same time; a second run against the
-same application is refused by the claim. Scope the one fine-grained PAT to
-every repository you name:
+same application is refused by the claim.
+
+Each application can have its own token, scoped to its repository, in the
+Secret `lightwell-github-<owner>-<repo>`; the run prints which Secret it took
+the token from. With the GitHub App (skill `provision-app-repo`)
+`run-remediation.sh --repo` mints it for you. Without the App, create it with
+a fine-grained PAT for that repository, read from stdin:
+
+```bash
+oc create secret generic lightwell-github-<owner>-<app-a> -n lightwell-agents \
+  --from-file=GITHUB_TOKEN=/dev/stdin
+```
+
+An application with no Secret of its own uses the token in `lightwell-github`,
+which then has to reach it:
 
 ```bash
 for app in <you>/<app-a> <you>/<app-b>; do

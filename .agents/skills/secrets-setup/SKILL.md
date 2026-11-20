@@ -55,7 +55,7 @@ and exits 2 rather than running green against an empty directory:
 
 | Variable | Purpose |
 |---|---|
-| `GITHUB_TOKEN` | Fine-grained PAT scoped to `APP_REPO` and every repository a run names with `--repo`: Contents RW, Pull requests RW, Metadata R |
+| `GITHUB_TOKEN` | Fine-grained PAT scoped to `APP_REPO`: Contents RW, Pull requests RW, Metadata R. Other applications named with `--repo` take theirs from `lightwell-github-<owner>-<repo>` when it exists, and this one otherwise |
 | `APP_REPO` | Default application repository to remediate, as `owner/repo` ([ADR-0011](../../../docs/adr/0011-target-repository-run-parameter.md)) |
 
 Not consumed yet — Lightwell credentials, for the Phase 3 trigger. Kept empty in

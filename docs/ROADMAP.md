@@ -487,12 +487,16 @@ Tasks:
       reader uses them, and if not, set the span times from them (or from
       `out/session.log`) before export. Matters for the demo video, where the
       timeline is on screen
-- [ ] Concurrent runs on different applications
+- [x] Concurrent runs on different applications
       ([ADR-0011](adr/0011-target-repository-run-parameter.md),
       [spec](../specs/agents/orchestration-strategy.spec.md) — Concurrent Runs
       on Different Applications): `repository` run parameter,
-      `run-remediation.sh --repo`, Maven Resolver `file-lock` on the shared
-      cache. Pending cluster validation
+      `run-remediation.sh --repo`, a token per application
+      (`github-secret` run parameter, `lightwell-github-<owner>-<repo>`),
+      Maven Resolver `file-lock` on the shared cache. Validated 2026-11-20
+      with two concurrent real runs on two applications, each with its own
+      token ([ADR-0011 — Validation](adr/0011-target-repository-run-parameter.md#validation));
+      more than two not yet measured
 - [ ] Align the `exploit` agent role with the `demonstrate` Tekton task. The
       MLflow session is named after the role (`<run>-exploit`) while the
       Pipelines console shows the task (`demonstrate`), so the two views of the

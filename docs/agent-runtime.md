@@ -51,7 +51,7 @@ chmod 600 secrets/secrets.env
 | `MAAS_API_KEY` | yes | Sent as `x-api-key` |
 | `MAAS_MODEL` | yes | Must exist in the MaaS catalog |
 | `MAAS_SMALL_MODEL` | no | Falls back to `MAAS_MODEL` when empty |
-| `GITHUB_TOKEN` | for PRs | Token scoped to `APP_REPO`: a one-hour GitHub App token from `scripts/provision-app-repo.sh` (skill `provision-app-repo`), or a fine-grained PAT scoped to `APP_REPO` and any repository passed with `--repo` |
+| `GITHUB_TOKEN` | for PRs | Token scoped to `APP_REPO`: a one-hour GitHub App token from `scripts/provision-app-repo.sh` (skill `provision-app-repo`), or a fine-grained PAT scoped to `APP_REPO`. In-cluster runs naming another application take it from that application's Secret, `lightwell-github-<owner>-<repo>`, when it exists ([ADR-0011](adr/0011-target-repository-run-parameter.md)) |
 | `APP_REPO` | for PRs | Default `owner/repo` of the application to remediate; `--repo` overrides it, and in-cluster runs pass it per run ([ADR-0011](adr/0011-target-repository-run-parameter.md)) |
 | `LW_USERNAME` / `LW_PASSWORD` | for builds | Resolve the dependency repositories, and fetch an `--osv` URL. Never reach the agent |
 | `LW_MAVEN_REPO_URL` | for builds | The Lightwell remediated repository. The application's `settings.xml` reads it as `${env.LW_MAVEN_REPO_URL}`, so the URL is in no repository |
