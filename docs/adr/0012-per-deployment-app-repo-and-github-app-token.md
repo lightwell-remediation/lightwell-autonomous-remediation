@@ -71,6 +71,10 @@ The Secret keeps the same keys, so the runtime is unchanged.
   the repository with mode 600.
 - Each deployment leaves a repository to tear down (`--teardown`).
 - Milestone 2 should move token renewal into the cluster rather than the laptop.
+- A run naming another application (`run-remediation.sh --repo`) gets a token
+  minted for that repository into its own Secret, `lightwell-github-<app>`
+  ([ADR-0011](./0011-target-repository-run-parameter.md)), rather than reusing
+  the deployment's token.
 
 ## Validation
 
@@ -90,7 +94,7 @@ The Secret keeps the same keys, so the runtime is unchanged.
 
 ## Related Decisions
 
-- [ADR-0003](./0003-agent-runtime-packaging-and-credentials.md), [ADR-0004](./0004-demo-repository-ground-truth-isolation.md), [ADR-0007](./0007-in-cluster-credential-delivery.md)
+- [ADR-0003](./0003-agent-runtime-packaging-and-credentials.md), [ADR-0004](./0004-demo-repository-ground-truth-isolation.md), [ADR-0007](./0007-in-cluster-credential-delivery.md), [ADR-0011](./0011-target-repository-run-parameter.md)
 
 ## References
 

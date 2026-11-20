@@ -59,11 +59,14 @@ so a single-application deployment keeps working unchanged.
 run.
 
 - **Pros:** the blast radius of a token stays one repository.
-- **Cons:** Tekton cannot select an `envFrom` Secret by a parameter, so each
-  phase would need a workspace bound per run or a lookup step with API
-  access the agent's account deliberately does not have (ADR-0009). One
-  `make secrets` input per application, and onboarding an application becomes
-  a credential operation.
+- **Cons:** one Secret per application to create and keep fresh, so
+  onboarding an application becomes a credential operation.
+- **Feasibility:** first set aside on the belief that Tekton cannot pick a
+  Secret by parameter. That was wrong: `env[].valueFrom.secretKeyRef.name`
+  is one of the fields Tekton substitutes parameters into
+  ([variables.md](https://github.com/tektoncd/pipeline/blob/main/docs/variables.md)),
+  so a run can name the Secret its token comes from and no step needs API
+  access (corrected 2026-11-20).
 
 ### Option 3: One namespace per application
 
@@ -75,11 +78,23 @@ Duplicate the whole deployment per target.
 
 ## Decision
 
-**Option 1.** The target repository is a run parameter, and one PAT scoped to
-every target repository is the credential. Per-application Secrets (Option 2)
-are deferred to Milestone 2, when External Secrets gives a store to select
-from. `APP_REPO` in `lightwell-github` remains as the default for runs that
-name no repository.
+**Option 1 for the repository, Option 2 for the credential.** The target
+repository is a run parameter (`repository`), and so is the Secret its token
+comes from (`github-secret`). Each application may have its own Secret,
+`lightwell-github-<app>`, holding a `GITHUB_TOKEN` scoped to its repository;
+an application without one uses the token in `lightwell-github`, which then
+has to reach it. `APP_REPO` in `lightwell-github` remains the default for runs
+that name no repository, and the author identity stays there.
+
+`run-remediation.sh` picks the Secret: the application's own when it exists,
+the default otherwise, and says which. Where the GitHub App of
+[ADR-0012](./0012-per-deployment-app-repo-and-github-app-token.md) is
+configured it first mints a token for that one repository into the
+application's Secret, so per-application tokens need no manual step there.
+
+Revised 2026-11-20: the first version of this decision used a single token
+scoped to every target and deferred per-application Secrets to Milestone 2.
+Each application having its own credential is now a requirement of the spec.
 
 The cache is made safe in the same change: every step that runs Maven gets
 `MAVEN_OPTS` selecting `file-lock` and `file-gav`. It is set in the chart,
@@ -93,16 +108,21 @@ needs no image rebuild.
 - Runs against different applications, including several with the same
   vulnerability, can be started together and each delivers to its own
   repository.
-- Onboarding another application is adding it to the token's scope; nothing
-  in the cluster changes.
+- A token reaches one application's repository: a leaked or misused token
+  exposes that repository, not the estate.
+- With the GitHub App, onboarding another application needs no credential
+  operation; without it, it is one Secret, or adding the repository to the
+  default token's scope.
 - The cache is safe for concurrent writers whatever the concurrency turns out
   to be, not only at the level tested.
 
 ### Negative
 
-- The PAT's scope grows with the number of applications. Mitigated by
-  fine-grained scoping (Contents and Pull requests read/write, no
-  administration) and revisited by Option 2 in Milestone 2.
+- One more Secret per application to keep fresh. An App installation token
+  lasts one hour, so a run longer than that can fail at delivery
+  (ADR-0012 — the same limitation for the default token).
+- An application with no Secret of its own silently widens the default
+  token's required scope; `run-remediation.sh` says so on every such run.
 - `file-lock` relies on POSIX advisory locks on the cache volume. CephFS
   supports them; an RWX class that does not would serialise nothing, silently.
 - Concurrency is a budget, not an enforced limit: N runs are N agent pods and
@@ -121,7 +141,27 @@ at a time.
 
 ## Validation
 
-<!-- TODO: fill in after the cluster run -->
+2026-11-20, on an RHDP cluster (OpenShift Pipelines, CephFS RWX cache), with
+the chart applied by hand from the branch while ArgoCD's auto-sync was paused:
+
+- `scripts/test-pipeline.sh`: 6/6 replay scenarios pass. An analyze pod's step
+  carries `GITHUB_TOKEN` from `secretKeyRef.name` resolved from `github-secret`,
+  and `MAVEN_OPTS` with `file-lock`/`file-gav`.
+- Locally, two containers of the runtime image resolving into one empty cache
+  at once both succeed; Maven logs `nameMapper 'file-gav' and factory 'file-lock'`.
+- Two real runs started together with `run-remediation.sh --repo`, one per
+  private copy of the template, the same record (`RHLW-2026-2d8697b26ccd16c3`,
+  CVE-2026-68079), each with a GitHub App token minted into its own Secret:
+  neither claim refused the other, each cloned only its repository, and each
+  delivered one pull request to its own repository. Both took about 18.5
+  minutes in parallel (09:05:55–09:24:34 and 09:05:54–09:24:16), against
+  about 19 minutes for one run alone the same morning: no measurable
+  contention at two.
+- Found and fixed during the run: the per-application Secret name was cut at
+  46 characters, which gave `…-mlqbn-b` the name of `…-mlqbn`'s Secret.
+
+Not yet measured: more than two concurrent runs, and how close a slower
+parallel run comes to the one-hour lifetime of an App token.
 
 ## Related Decisions
 
