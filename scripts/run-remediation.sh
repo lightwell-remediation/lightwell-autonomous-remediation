@@ -36,7 +36,17 @@
 #     run-remediation.sh GHSA-hfrx-6qgj-fp6c --repo "$app" --no-follow
 #   done
 #
-# The token in lightwell-github must reach every repository named this way.
+# Each application may have its own token, in the Secret
+# lightwell-github-<owner>-<repo> (the name is printed when the run starts).
+# Where the GitHub App is configured (secrets/github-app.env) a token scoped to
+# that one repository is minted into it first; otherwise create it with a
+# token of your own, e.g. a fine-grained PAT, from stdin:
+#
+#   oc create secret generic lightwell-github-acme-orders -n lightwell-agents \
+#     --from-file=GITHUB_TOKEN=/dev/stdin
+#
+# An application without one uses the token in lightwell-github, which then
+# has to reach it (ADR-0011).
 #
 # --image runs this one remediation on another runtime image, typically a
 # wip- build from build-runtime-image.sh --from-dir. The Pipeline's own image
@@ -98,7 +108,7 @@ while [ $# -gt 0 ]; do
     --repo)      REPO="${2:?--repo needs a value}"; shift 2 ;;
     --vulnerability) VULNERABILITY="${2:?--vulnerability needs a value}"; shift 2 ;;
     --no-follow) FOLLOW=0; shift ;;
-    -h|--help)   sed -n '2,56p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,70p' "$0"; exit 0 ;;
     -*)          die "unknown argument: $1" ;;
     *)           OSV="$1"; shift ;;
   esac
@@ -110,8 +120,8 @@ oc whoami >/dev/null 2>&1 || die "not logged in to a cluster"
 
 # A GitHub App installation token lasts one hour, and a run can start long after
 # the one that minted it. With the App configured and no --repo, mint a fresh one
-# for the APP_REPO in secrets.env and update the Secret. A --repo run is left
-# alone: the token is scoped to the repository it was minted for.
+# for the APP_REPO in secrets.env and update the Secret. A --repo run gets a
+# token of its own instead, minted below into its application's Secret.
 if [ -z "$REPO" ] && [ -r "$(dirname "${BASH_SOURCE[0]}")/../secrets/github-app.env" ]; then
   "$(dirname "${BASH_SOURCE[0]}")/provision-app-repo.sh" --refresh \
     || die "could not refresh the GitHub token (scripts/provision-app-repo.sh --refresh)"
@@ -128,6 +138,28 @@ if [ -z "$application" ]; then
 fi
 [[ "$application" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
   || die "the repository must be owner/repo, not: $application"
+
+# Which Secret every phase takes its GITHUB_TOKEN from (ADR-0011): the
+# application's own when it has one, the deployment's default otherwise. Only
+# a --repo run looks for its own: without --repo the run is the default
+# application, whose token lightwell-github already holds.
+github_secret="lightwell-github"
+if [ -n "$REPO" ]; then
+  # Not truncated: a Secret name may be 253 characters and owner/repo fits in
+  # 140, while cutting it would give two repositories that share a prefix the
+  # same Secret.
+  own_secret="lightwell-github-$(printf '%s' "$application" | tr 'A-Z/_' 'a-z--' \
+    | tr -c 'a-z0-9.-' '-' | sed 's/[-.]*$//')"
+  if [ -r "$SCRIPT_DIR/../secrets/github-app.env" ]; then
+    "$SCRIPT_DIR/provision-app-repo.sh" --repo "$application" --secret "$own_secret" \
+      || die "could not mint a token for $application (scripts/provision-app-repo.sh --repo $application --secret $own_secret)"
+  fi
+  if oc get secret "$own_secret" -n "$NAMESPACE" >/dev/null 2>&1; then
+    github_secret="$own_secret"
+  else
+    log "no Secret $own_secret — this run uses the token in lightwell-github, which must reach $application"
+  fi
+fi
 
 for required in lightwell-maas lightwell-github; do
   oc get secret "$required" -n "$NAMESPACE" >/dev/null 2>&1 \
@@ -186,6 +218,27 @@ label="$(printf '%s' "$application" | tr 'A-Z/' 'a-z-' | cut -c1-63)"
 app_hash="$(printf '%s' "$application" | sha256sum | cut -c1-8)"
 cm="osv-$(printf '%s' "${record%.json}" | tr 'A-Z_.' 'a-z--' | cut -c1-46)-$app_hash"
 
+# The run's name says what it is for: <repo>-<vulnerability>-xxxxx, so
+# concurrent runs are told apart in a listing (pipeline.spec.md — A Run Is
+# Legible Without Reading Logs), and MLflow names the experiment and sessions
+# after it. Tekton names every TaskRun and pod after the run too, and replaces
+# any name over 63 characters with a hash; the longest is the retry pod of
+# patch-and-verify, <run>-patch-and-verify-pod-retry1, so the run gets 35
+# characters and this prefix 30. The vulnerability is kept whole; the
+# repository keeps its end, which is what tells applications apart
+# (…-mlqbn from …-mlqbn-b), cut at a dash so no word is split.
+dns_part() { printf '%s' "$1" | tr 'A-Z_.' 'a-z--' | tr -c 'a-z0-9-' '-' | sed 's/--*/-/g; s/^-*//; s/-*$//'; }
+tail_part() { # <text> <max>: the last <max> characters, starting at a word
+  local text="$1" max="$2" cut
+  [ "${#text}" -le "$max" ] && { printf '%s' "$text"; return; }
+  cut="${text: -$max}"
+  [ "${text: -$((max + 1)):1}" = "-" ] || [ "${cut#*-}" = "$cut" ] || cut="${cut#*-}"
+  printf '%s' "${cut#-}"
+}
+vuln_part="$(dns_part "${VULNERABILITY:-${record%.json}}" | cut -c1-16 | sed 's/-*$//')"
+repo_part="$(tail_part "$(dns_part "${application#*/}")" $((28 - ${#vuln_part})))"
+run_prefix="${repo_part:+$repo_part-}$vuln_part-"
+
 osv_workspace=""
 if [ "$source_kind" = file ]; then
   oc delete configmap "$cm" -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1
@@ -202,7 +255,7 @@ run="$(oc create -n "$NAMESPACE" -o name -f - <<YAML | cut -d/ -f2
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: remediate-
+  generateName: $run_prefix
   labels:
     app.kubernetes.io/part-of: lightwell-remediation
     lightwell.dev/application: $label
@@ -224,6 +277,8 @@ spec:
       value: $label
     - name: repository
       value: "$application"
+    - name: github-secret
+      value: $github_secret
     - name: osv
       value: "$osv_param"
     - name: vulnerability
@@ -252,6 +307,7 @@ YAML
 
 log "started $run"
 log "  application $application"
+log "  token from  $github_secret"
 log "  record      $record ($source_kind)"
 [ -z "$VULNERABILITY" ] || log "  vulnerability $VULNERABILITY"
 log "  branch      ${BRANCH:-the repository default}"

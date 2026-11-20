@@ -52,6 +52,7 @@ spec:
       description: The branch remediated; prefers a baseline of that ref.
       default: ""
     {{- include "remediation.cacheParam" . | nindent 4 }}
+    {{- include "remediation.githubSecretParam" . | nindent 4 }}
   workspaces:
     - name: source
   volumes:

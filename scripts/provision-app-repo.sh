@@ -24,6 +24,13 @@
 #                                                lw-apache-cxf-demo-template)
 #   provision-app-repo.sh --refresh              new token for the APP_REPO in
 #                                                secrets.env (the token lasts 1 h)
+#   provision-app-repo.sh --repo O/R --secret S  new token for an existing
+#                                                repository of the installation,
+#                                                into the cluster Secret S only:
+#                                                one application's own credential
+#                                                (ADR-0011). secrets.env is not
+#                                                touched. run-remediation.sh --repo
+#                                                calls this.
 #   provision-app-repo.sh <name> --teardown --yes   delete the deployment's repo
 #   --no-push                                    skip the cluster Secret update
 #
@@ -41,6 +48,7 @@ readonly REPO_ROOT="$SCRIPT_DIR/.."
 readonly APP_ENV="${GH_APP_ENV:-$REPO_ROOT/secrets/github-app.env}"
 readonly SECRETS="${SECRETS:-$REPO_ROOT/secrets/secrets.env}"
 readonly API="https://api.github.com"
+readonly NAMESPACE="${NAMESPACE:-lightwell-agents}"
 
 die() { printf 'provision-app-repo: %s\n' "$*" >&2; exit 2; }
 log() { printf 'provision-app-repo: %s\n' "$*" >&2; }
@@ -50,10 +58,14 @@ template_name="lw-apache-cxf-demo-template"
 mode="provision"
 push=1
 yes=0
+token_repo=""
+token_secret=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --template) template_name="${2:?--template needs a value}"; shift 2 ;;
     --refresh)  mode="refresh"; shift ;;
+    --repo)     mode="token"; token_repo="${2:?--repo needs owner/repo}"; shift 2 ;;
+    --secret)   token_secret="${2:?--secret needs a name}"; shift 2 ;;
     --teardown) mode="teardown"; shift ;;
     --no-push)  push=0; shift ;;
     --yes)      yes=1; shift ;;
@@ -139,6 +151,11 @@ repo_from_secrets() {
 
 # ---- resolve the repository ------------------------------------------------
 case "$mode" in
+  token)
+    [[ "$token_repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "--repo must be owner/repo, not: $token_repo"
+    [[ "$token_secret" =~ ^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$ ]] || die "--repo needs --secret <name>, a valid Secret name"
+    app_repo="$token_repo"
+    ;;
   refresh)
     app_repo="$(repo_from_secrets)"
     { [ -n "$app_repo" ] && [ "$app_repo" != "CHANGE_ME" ]; } || die "APP_REPO is not set in secrets.env"
@@ -207,12 +224,34 @@ read -r granted_contents granted_pulls <<<"$granted"
 log "installation token minted, expires $expires_at"
 
 # ---- 4. secrets.env --------------------------------------------------------
-export GITHUB_TOKEN APP_REPO="$app_repo"
-set_secret_vars GITHUB_TOKEN APP_REPO
-log "secrets.env updated (APP_REPO, GITHUB_TOKEN)"
+# Not for one application's own token: secrets.env holds the deployment's
+# default, and a --repo run must not replace it.
+if [ "$mode" != "token" ]; then
+  export GITHUB_TOKEN APP_REPO="$app_repo"
+  set_secret_vars GITHUB_TOKEN APP_REPO
+  log "secrets.env updated (APP_REPO, GITHUB_TOKEN)"
+fi
 
 # ---- 5. cluster Secret -----------------------------------------------------
-if [ "$push" -eq 1 ]; then
+if [ "$mode" = "token" ]; then
+  # Applied whole, not merged: the Secret holds this one key and nothing else.
+  # The manifest goes on stdin so the token never reaches a command line.
+  oc whoami >/dev/null 2>&1 || die "not logged in to a cluster"
+  export GITHUB_TOKEN
+  python3 -I - "$token_secret" "$NAMESPACE" "$app_repo" <<'PY' | oc apply -f - >/dev/null \
+    || die "could not write Secret $token_secret"
+import json, os, sys
+name, namespace, repo = sys.argv[1:4]
+print(json.dumps({
+    "apiVersion": "v1", "kind": "Secret", "type": "Opaque",
+    "metadata": {"name": name, "namespace": namespace,
+                 "labels": {"app.kubernetes.io/part-of": "lightwell-remediation"},
+                 "annotations": {"lightwell.dev/repository": repo}},
+    "stringData": {"GITHUB_TOKEN": os.environ["GITHUB_TOKEN"]},
+}))
+PY
+  log "Secret $token_secret updated (GITHUB_TOKEN for $app_repo)"
+elif [ "$push" -eq 1 ]; then
   if oc whoami >/dev/null 2>&1; then
     "$SCRIPT_DIR/push-secrets.sh" github || die "push-secrets.sh failed"
   else
@@ -239,7 +278,13 @@ fi
 response="$(api_call "$GITHUB_TOKEN" GET "/repos/$app_repo/branches?per_page=100")"
 branches="${response%$'\n'*}"
 if printf '%s' "$branches" | grep -q '"name": *"remediate/'; then
-  check "no remediate/* branch left from an earlier run" fail
+  # A fresh demo copy must not carry an earlier answer. An application's own
+  # repository may legitimately keep earlier remediation branches.
+  if [ "$mode" = "token" ]; then
+    log "note: $app_repo has remediate/* branches from earlier runs"
+  else
+    check "no remediate/* branch left from an earlier run" fail
+  fi
 else
   check "no remediate/* branch left from an earlier run" ok
 fi

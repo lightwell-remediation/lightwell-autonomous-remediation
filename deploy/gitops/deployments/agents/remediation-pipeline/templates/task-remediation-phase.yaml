@@ -70,6 +70,7 @@ spec:
       description: File in the fixtures workspace to serve when replaying.
       default: ""
     {{- include "remediation.cacheParam" . | nindent 4 }}
+    {{- include "remediation.githubSecretParam" . | nindent 4 }}
   workspaces:
     - name: source
       description: The checkout and the phase documents. Discarded with the run.

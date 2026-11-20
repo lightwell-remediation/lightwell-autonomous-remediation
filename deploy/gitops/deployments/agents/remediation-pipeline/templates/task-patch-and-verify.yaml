@@ -46,6 +46,7 @@ spec:
         that does not model a retry needs only one document.
       default: ""
     {{- include "remediation.cacheParam" . | nindent 4 }}
+    {{- include "remediation.githubSecretParam" . | nindent 4 }}
   workspaces:
     - name: source
     - name: fixtures

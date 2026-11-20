@@ -20,6 +20,7 @@ spec:
       type: string
       default: "false"
     {{- include "remediation.cacheParam" . | nindent 4 }}
+    {{- include "remediation.githubSecretParam" . | nindent 4 }}
   workspaces:
     - name: source
     - name: fixtures

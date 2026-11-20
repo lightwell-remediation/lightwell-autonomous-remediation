@@ -73,6 +73,13 @@ spec:
         the affinity assistant allows one PVC-backed workspace per TaskRun,
         and the run's own workspace is that one. See the chart helpers.
       default: {{ .Values.cache.claimName | quote }}
+    - name: github-secret
+      type: string
+      description: >-
+        The Secret every phase takes its GITHUB_TOKEN from. The application's
+        own, lightwell-github-<app>, scoped to its repository; or the
+        deployment's default, which then has to reach it (ADR-0011).
+      default: {{ .Values.secrets.github | quote }}
     - name: replay
       type: string
       description: >-
@@ -138,6 +145,8 @@ spec:
           value: $(params.replay)
         - name: cache-claim
           value: $(params.cache-claim)
+        - name: github-secret
+          value: $(params.github-secret)
         - name: fixture
           value: analysis.json
       workspaces: &phaseWorkspaces
@@ -168,6 +177,8 @@ spec:
           value: $(params.replay)
         - name: cache-claim
           value: $(params.cache-claim)
+        - name: github-secret
+          value: $(params.github-secret)
       # Not the shared list: the baseline runs the application's own suite
       # and never reads the vulnerability record, so it is the one phase that
       # does not take the osv workspace.
@@ -214,6 +225,8 @@ spec:
           value: $(params.replay)
         - name: cache-claim
           value: $(params.cache-claim)
+        - name: github-secret
+          value: $(params.github-secret)
         - name: fixture
           value: exploit.json
       workspaces: *phaseWorkspaces
@@ -247,6 +260,8 @@ spec:
           value: $(params.replay)
         - name: cache-claim
           value: $(params.cache-claim)
+        - name: github-secret
+          value: $(params.github-secret)
         - name: fixture-patch
           value: patch.json
         - name: fixture-verify
@@ -283,6 +298,8 @@ spec:
           value: $(params.app-branch)
         - name: cache-claim
           value: $(params.cache-claim)
+        - name: github-secret
+          value: $(params.github-secret)
       workspaces:
         - name: source
           workspace: source
@@ -317,6 +334,8 @@ spec:
           value: $(params.replay)
         - name: cache-claim
           value: $(params.cache-claim)
+        - name: github-secret
+          value: $(params.github-secret)
         - name: fixture
           value: delivery.json
       workspaces: *phaseWorkspaces

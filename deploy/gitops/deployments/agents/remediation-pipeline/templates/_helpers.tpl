@@ -17,6 +17,15 @@ envFrom:
       name: {{ .Values.secrets.lightwell }}
       optional: true
 env:
+  # Overrides the GITHUB_TOKEN envFrom brings in: each run names the Secret its
+  # token comes from, so every application can have one scoped to its own
+  # repository (ADR-0011). secretKeyRef.name is one of the fields Tekton
+  # substitutes parameters into; envFrom's name is not documented as one.
+  - name: GITHUB_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: $(params.github-secret)
+        key: GITHUB_TOKEN
   - name: WORKSPACE
     value: $(workspaces.source.path)
   # The image prepares /home/claude-agent/.m2 group-writable for an arbitrary
@@ -64,6 +73,15 @@ against a scratch cache sets the parameter instead of rebinding a workspace.
 volumeMounts:
   - name: maven-cache
     mountPath: /home/claude-agent/.m2
+{{- end -}}
+
+{{- define "remediation.githubSecretParam" -}}
+- name: github-secret
+  type: string
+  description: >-
+    The Secret the GITHUB_TOKEN comes from: the application's own
+    (lightwell-github-<app>) or the deployment's default (ADR-0011).
+  default: {{ .Values.secrets.github | quote }}
 {{- end -}}
 
 {{- define "remediation.cacheParam" -}}
