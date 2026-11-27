@@ -58,3 +58,7 @@ records, `make tpa-load` does it through the API): see [workarounds](../../../..
   `templates/realm.yaml` on a running cluster, delete the realm in Keycloak and
   the `KeycloakRealmImport` `rhtpa` so it is imported again. Neither is needed on
   a fresh install.
+- **Restart the TPA server after reimporting the realm.** A new realm has new
+  signing keys and the server keeps the ones it read at start, so every token,
+  the `cli` one included, gets `401 Authentication failed` until
+  `oc rollout restart deployment/server -n trusted-profile-analyzer`.
