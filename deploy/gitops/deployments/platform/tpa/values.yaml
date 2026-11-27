@@ -33,6 +33,10 @@ keycloak:
   namespace: keycloak
   # Name of the Keycloak custom resource. Verify: oc get keycloak -A
   crName: keycloak
+  # API version the RHBK operator serves for KeycloakRealmImport. RHBK 26.4
+  # serves only v2alpha1 (verified on the cluster), the reference demo used
+  # v2beta1 on an older operator. Check: oc get crd keycloakrealmimports.k8s.keycloak.org
+  realmImportApiVersion: k8s.keycloak.org/v2alpha1
   # Public host of that Keycloak, no scheme. Required.
   host: ""
 

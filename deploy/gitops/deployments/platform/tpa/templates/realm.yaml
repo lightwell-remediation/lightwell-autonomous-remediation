@@ -14,7 +14,7 @@
 # make every console user an administrator. Those write scopes stay optional.
 # trustify-user only receives read:document. trustify-manager and
 # trustify-admin are carried in realm_access.roles for the authenticator.
-apiVersion: k8s.keycloak.org/v2beta1
+apiVersion: {{ .Values.keycloak.realmImportApiVersion }}
 kind: KeycloakRealmImport
 metadata:
   name: rhtpa
