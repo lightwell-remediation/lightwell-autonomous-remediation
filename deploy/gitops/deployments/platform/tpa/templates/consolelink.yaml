@@ -1,0 +1,17 @@
+---
+# Entry in the console's application launcher (the 3x3 grid), next to MLflow and
+# OpenShift AI. The route host is fixed by the operator: server<appDomain>.
+apiVersion: console.openshift.io/v1
+kind: ConsoleLink
+metadata:
+  name: trusted-profile-analyzer
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  text: Red Hat Trusted Profile Analyzer
+  location: ApplicationMenu
+  href: https://server-trusted-profile-analyzer.{{ required "clusterDomain is required" .Values.clusterDomain }}
+  applicationMenu:
+    section: OpenShift Self Managed Services
+    # Plain shield, so the entry has an icon without shipping a brand asset.
+    imageURL: data:image/svg+xml;base64,{{ .Values.consoleLink.icon }}

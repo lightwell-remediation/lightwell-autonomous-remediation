@@ -87,3 +87,7 @@ resources:
 # image is an ImageStream tag every cluster has.
 credentialPathsJob:
   image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+
+# Application launcher icon, base64 of an SVG (a plain shield with a check).
+consoleLink:
+  icon: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHBhdGggZD0iTTE2IDIgNCA3djloMGMwIDcgNSAxMiAxMiAxNCA3LTIgMTItNyAxMi0xNFY3eiIgZmlsbD0iI2VlMDAwMCIvPjxwYXRoIGQ9Im05IDE2IDUgNSA5LTkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzIi8+PC9zdmc+
