@@ -108,6 +108,11 @@ platform:
       namespace: keycloak
       crName: keycloak
       host: ""
+    # Sign in with the cluster's OpenShift users through a Keycloak identity
+    # provider. make secrets creates the OAuthClient and adds the API's CA to
+    # the Keycloak truststore (it restarts that Keycloak). Set false to skip.
+    openshiftLogin:
+      enabled: true
     lightwellImporters:
       javaRemediated: true
       pythonRemediated: true

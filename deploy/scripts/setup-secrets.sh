@@ -217,6 +217,51 @@ else
     done
     random_secret "$KC_NS" rhtpa-users admin-password
 
+    # Sign in with the cluster's OpenShift users (platform.tpa.openshiftLogin).
+    # Three things, all outside git: the client secret, the OAuthClient that
+    # holds it (a cluster object, its secret is a plain field), and the CA of
+    # the API in the Keycloak's truststore so Keycloak can read the discovery
+    # document. The last one restarts the Keycloak, which is not ours.
+    if [[ "${TPA_OPENSHIFT_LOGIN:-true}" != "false" ]]; then
+      random_secret "$KC_NS" oidc-openshift client-secret
+      OC_SECRET="$(oc get secret oidc-openshift -n "$KC_NS" -o jsonpath='{.data.client-secret}' | base64 -d)"
+      KC_PUBLIC="${TPA_KEYCLOAK_HOST:-$(oc get keycloak -n "$KC_NS" -o jsonpath='{.items[0].spec.hostname.hostname}' 2>/dev/null || true)}"
+      if [[ -n "$KC_PUBLIC" ]]; then
+        oc apply -f - >/dev/null <<EOF_OAUTH
+apiVersion: oauth.openshift.io/v1
+kind: OAuthClient
+metadata:
+  name: tpa-keycloak
+grantMethod: auto
+secret: "$OC_SECRET"
+redirectURIs:
+  - https://$KC_PUBLIC/realms/trustify/broker/openshift/endpoint
+EOF_OAUTH
+        log_ok "OAuthClient tpa-keycloak"
+      else
+        log_skip "no Keycloak host, OAuthClient tpa-keycloak not created"
+      fi
+
+      KC_NAME="$(oc get keycloak -n "$KC_NS" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+      API_CA="$(oc get configmap kube-apiserver-server-ca -n openshift-config-managed \
+                  -o jsonpath='{.data.ca-bundle\.crt}' 2>/dev/null || true)"
+      if [[ -n "$KC_NAME" && -n "$API_CA" ]]; then
+        oc create secret generic openshift-api-ca -n "$KC_NS" --from-literal="openshift-api-ca.crt=$API_CA" \
+          --dry-run=client -o yaml | oc apply -f - >/dev/null
+        if [[ "$(oc get keycloak "$KC_NAME" -n "$KC_NS" -o jsonpath='{.spec.truststores.openshift-api.secret.name}' 2>/dev/null)" == "openshift-api-ca" ]]; then
+          log_skip "Keycloak $KC_NAME already trusts the OpenShift API CA"
+        else
+          oc patch keycloak "$KC_NAME" -n "$KC_NS" --type merge \
+            -p '{"spec":{"truststores":{"openshift-api":{"secret":{"name":"openshift-api-ca"}}}}}' >/dev/null
+          log_ok "Keycloak $KC_NAME trusts the OpenShift API CA (it restarts)"
+        fi
+      else
+        log_skip "no Keycloak CR or no API CA bundle: OpenShift login will not work"
+      fi
+    else
+      log_skip "TPA_OPENSHIFT_LOGIN=false, skipping the OpenShift login for TPA"
+    fi
+
     # What the pipeline reads. The route host is fixed by the operator
     # (server<appDomain>), the token endpoint is the Keycloak's own host.
     DOMAIN="$(oc get ingresscontroller.operator.openshift.io default -n openshift-ingress-operator \

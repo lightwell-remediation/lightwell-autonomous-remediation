@@ -34,6 +34,8 @@ spec:
           host: {{ .Values.platform.tpa.keycloak.host | quote }}
         storage:
           type: {{ .Values.platform.tpa.storage.type }}
+        openshiftLogin:
+          enabled: {{ .Values.platform.tpa.openshiftLogin.enabled }}
         lightwell:
           importers:
             {{- toYaml .Values.platform.tpa.lightwellImporters | nindent 12 }}

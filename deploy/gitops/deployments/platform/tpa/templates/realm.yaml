@@ -35,6 +35,12 @@ spec:
       secret:
         name: {{ .Values.secrets.users }}
         key: admin-password
+    {{- if .Values.openshiftLogin.enabled }}
+    OPENSHIFT_CLIENT_SECRET:
+      secret:
+        name: {{ .Values.secrets.oidcOpenshift }}
+        key: client-secret
+    {{- end }}
   realm:
     realm: trustify
     enabled: true
@@ -230,6 +236,35 @@ spec:
         attributes:
           include.in.token.scope: "true"
           display.on.consent.screen: "false"
+    {{- if .Values.openshiftLogin.enabled }}
+    # Sign in with the cluster's OpenShift OAuth. Keycloak reads the API's
+    # discovery document, so its truststore has to hold the API's CA
+    # (deploy/scripts/setup-secrets.sh adds it to the Keycloak CR).
+    identityProviders:
+      - alias: openshift
+        displayName: OpenShift
+        providerId: openshift-v4
+        enabled: true
+        trustEmail: true
+        storeToken: false
+        config:
+          baseUrl: {{ .Values.openshiftLogin.apiUrl | default (printf "https://api.%s:6443" (trimPrefix "apps." (required "clusterDomain is required" .Values.clusterDomain))) }}
+          clientId: {{ .Values.openshiftLogin.clientId }}
+          clientSecret: "${OPENSHIFT_CLIENT_SECRET}"
+          defaultScope: user:info
+          syncMode: FORCE
+    # Whoever the cluster lets in gets these realm roles. A federated user has
+    # none otherwise, and TPA would show them nothing.
+    identityProviderMappers:
+      {{- range .Values.openshiftLogin.roles }}
+      - name: role-{{ . }}
+        identityProviderAlias: openshift
+        identityProviderMapper: hardcoded-role
+        config:
+          syncMode: FORCE
+          role: {{ . }}
+      {{- end }}
+    {{- end }}
     clients:
       - clientId: frontend
         name: RHTPA console

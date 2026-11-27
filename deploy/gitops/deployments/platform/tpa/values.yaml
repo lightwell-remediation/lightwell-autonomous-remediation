@@ -72,6 +72,7 @@ lightwell:
 secrets:
   db: rhtpa-db              # keys: postgres-password, username, password, database
   oidcCli: oidc-cli         # key: client-secret (also created in the Keycloak namespace)
+  oidcOpenshift: oidc-openshift  # key: client-secret (Keycloak namespace), OpenShift login
   users: rhtpa-users        # key: admin-password (Keycloak namespace), console login
 
 resources:
@@ -91,3 +92,19 @@ credentialPathsJob:
 # Application launcher icon, base64 of an SVG (a plain shield with a check).
 consoleLink:
   icon: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHBhdGggZD0iTTE2IDIgNCA3djloMGMwIDcgNSAxMiAxMiAxNCA3LTIgMTItNyAxMi0xNFY3eiIgZmlsbD0iI2VlMDAwMCIvPjxwYXRoIGQ9Im05IDE2IDUgNSA5LTkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzIi8+PC9zdmc+
+
+# Sign in to TPA with the cluster's OpenShift users, through a Keycloak identity
+# provider (TPA only validates OIDC tokens, and OpenShift's own are opaque).
+# The OAuthClient and the CA in Keycloak's truststore are created by
+# deploy/scripts/setup-secrets.sh, they hold a secret and touch a shared Keycloak.
+openshiftLogin:
+  enabled: true
+  clientId: tpa-keycloak
+  # Empty derives https://api.<clusterDomain without apps.>:6443
+  apiUrl: ""
+  # Every OpenShift user who signs in gets these. On a demo cluster the team is
+  # the set of users; narrow it (and map by group) before sharing the cluster.
+  roles:
+    - trustify-user
+    - trustify-manager
+    - trustify-admin
