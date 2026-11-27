@@ -341,9 +341,11 @@ spec:
           post.logout.redirect.uris: "+"
           client.use.lightweight.access.token.enabled: "false"
     users:
-      - username: admin
+      # Not "admin": the OpenShift login brings a user of that name (the RHDP
+      # default), and the two collide at first broker login.
+      - username: tpa-admin
         enabled: true
-        email: admin@example.com
+        email: tpa-admin@example.com
         emailVerified: true
         firstName: Admin
         lastName: User
