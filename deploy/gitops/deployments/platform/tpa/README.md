@@ -42,3 +42,19 @@ Iterate with `helm upgrade --install` on this chart before trusting ArgoCD.
 TC-7588 (credential paths, applied here as a PostSync Job) and TC-7303
 (Lightwell Maven ecosystem, still present in 3.1.2: the importer cannot load the
 records, `make tpa-load` does it through the API): see [workarounds](../../../../../docs/workarounds.md).
+
+## Sign in
+
+- **With OpenShift** (`openshiftLogin`, on by default): the button "OpenShift" in
+  the login page. Keycloak talks to the cluster API, so `make secrets` creates
+  the `OAuthClient` `tpa-keycloak` and adds the API's CA to the **shared**
+  Keycloak's truststore (that restarts it). Every user the cluster lets in gets
+  the roles in `openshiftLogin.roles`; narrow them before sharing the cluster.
+  OpenShift returns no email, so every such user gets a placeholder one.
+- **Local**: user `tpa-admin` of the realm `trustify`, password in the Secret
+  `rhtpa-users` (namespace of the Keycloak). Not called `admin` because that is
+  the OpenShift user's name too.
+- The realm import creates a realm, it never updates one. After changing
+  `templates/realm.yaml` on a running cluster, delete the realm in Keycloak and
+  the `KeycloakRealmImport` `rhtpa` so it is imported again. Neither is needed on
+  a fresh install.

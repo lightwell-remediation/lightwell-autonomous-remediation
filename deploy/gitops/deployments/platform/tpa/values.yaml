@@ -102,6 +102,8 @@ openshiftLogin:
   clientId: tpa-keycloak
   # Empty derives https://api.<clusterDomain without apps.>:6443
   apiUrl: ""
+  # Email every OpenShift user gets, since OpenShift returns none.
+  placeholderEmail: openshift-user@example.invalid
   # Every OpenShift user who signs in gets these. On a demo cluster the team is
   # the set of users; narrow it (and map by group) before sharing the cluster.
   roles:

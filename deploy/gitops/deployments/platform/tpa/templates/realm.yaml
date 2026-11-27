@@ -48,7 +48,11 @@ spec:
     sslRequired: external
     registrationAllowed: false
     resetPasswordAllowed: false
-    loginWithEmailAllowed: true
+    # OpenShift does not return an email, so the OpenShift login gives every
+    # user the same placeholder one (mapper below). That needs duplicates
+    # allowed, which in turn rules out signing in with the email.
+    loginWithEmailAllowed: false
+    duplicateEmailsAllowed: true
     accessTokenLifespan: 900
     roles:
       realm:
@@ -259,6 +263,16 @@ spec:
     # A federated user has
     # none otherwise, and TPA would show them nothing.
     identityProviderMappers:
+      # Without an email the realm's user profile is incomplete and Keycloak
+      # shows "Update Account Information" at the first login. The names come
+      # from OpenShift (fullName), only the email is missing.
+      - name: email-placeholder
+        identityProviderAlias: openshift
+        identityProviderMapper: hardcoded-attribute-idp-mapper
+        config:
+          syncMode: IMPORT
+          attribute: email
+          attribute.value: {{ .Values.openshiftLogin.placeholderEmail | quote }}
       {{- range .Values.openshiftLogin.roles }}
       - name: role-{{ . }}
         identityProviderAlias: openshift
