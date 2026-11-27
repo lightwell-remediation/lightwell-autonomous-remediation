@@ -61,8 +61,8 @@ Then delete this entry. No code changes — the instance is configuration.
 
 ## TPA 3.1.1 refuses Lightwell credentials mounted from a Secret
 
-- **Date**: 2026-11-26 (applied in the `tpa` chart, not yet run on a cluster)
-- **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1
+- **Date**: 2026-11-27 (applied in the `tpa` chart, verified on a cluster)
+- **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1 and 3.1.2
 - **Bug/Issue**: [TC-7588](https://redhat.atlassian.net/browse/TC-7588)
 - **Expected resolution**: not announced
 
@@ -74,21 +74,26 @@ Lightwell repositories.
 
 ### Workaround
 
-The instance sets `modules.importer.credentialPaths` to the directory the
-`rhtpa-rhlw-creds` Secret is mounted at. Found in
+Set `IMPORTER_CREDENTIAL_PATHS` on the `importer` Deployment to the directory
+the `rhtpa-rhlw-creds` Secret is mounted at. The operator's chart has no value
+for it: `modules.importer.credentialPaths` and `extraEnv` are accepted by the CR
+and ignored (checked on 3.1.2), so a PostSync Job
+(`templates/importer-credential-paths.yaml`) runs `oc set env` once the
+operator has created the Deployment. Found in
 [rmarting/rhtpa-openshift-demo](https://github.com/rmarting/rhtpa-openshift-demo#unable-to-authenticate-to-lightwell-network-repositories).
 
 ### How to verify the fix
 
-Remove `credentialPaths` from `templates/trustedprofileanalyzer.yaml` and check
-that the importer logs no credential error. Then delete this entry.
+Remove the Job and check that the importer logs no `file credential source is
+disabled` error. Then delete this entry.
 
 ## TPA 3.1.1 rejects the Lightwell Maven ecosystem
 
-- **Date**: 2026-11-26 (to confirm on the cluster: depends on the version `stable-v3` resolves to)
-- **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1
+- **Date**: 2026-11-27
+- **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1 and **3.1.2**
+  (`stable-v3` resolves to 3.1.2; the importer still logs the error there)
 - **Bug/Issue**: [TC-7303](https://redhat.atlassian.net/browse/TC-7303)
-- **Expected resolution**: TPA 3.1.2
+- **Expected resolution**: the issue says 3.1.2, which did not fix it. Unknown.
 
 ### Problem
 
@@ -98,9 +103,8 @@ never reach the instance.
 
 ### Workaround
 
-None applied in the chart. If `stable-v3` still resolves to 3.1.1, upload the
-run's own OSV record to TPA through the API before the `sbom` step, or wait for
-3.1.2. Decide on the cluster: check `oc get csv -n trusted-profile-analyzer`.
+None applied in the chart yet. The Python remediated importer does ingest
+records (one advisory seen on 2026-11-27); the Java one fails on every record.
 
 ### How to verify the fix
 

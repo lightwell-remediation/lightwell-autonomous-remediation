@@ -82,3 +82,8 @@ resources:
     requests: {cpu: 500m, memory: 2Gi}
     limits: {memory: 4Gi}
   importerWorkdir: 10Gi
+
+# Sets IMPORTER_CREDENTIAL_PATHS on the importer (TC-7588). The OpenShift cli
+# image is an ImageStream tag every cluster has.
+credentialPathsJob:
+  image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest

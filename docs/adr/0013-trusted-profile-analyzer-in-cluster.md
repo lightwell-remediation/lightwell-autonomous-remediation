@@ -82,9 +82,9 @@ Keycloak and the `TrustedProfileAnalyzer` instance, from
 
 - About 1.2 CPU and 5 GiB more requests, plus a database volume and a bucket.
 - Depends on a Keycloak and on ODF that the bootstrap does not install.
-- TPA 3.1.1 rejects the `Red Hat Lightwell:Maven` ecosystem (TC-7303, fixed in
+- TPA 3.1.1 and 3.1.2 reject the `Red Hat Lightwell:Maven` ecosystem (TC-7303, announced as fixed in
   3.1.2) and refuses file credentials unless `credentialPaths` is set
-  (TC-7588, applied in the chart). Both are recorded in
+  (TC-7588, applied as a PostSync Job). Both are recorded in
   [workarounds](../workarounds.md) until validated on the cluster.
 
 ### Neutral

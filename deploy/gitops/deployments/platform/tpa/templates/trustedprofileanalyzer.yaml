@@ -122,10 +122,8 @@ spec:
         {{- toYaml .Values.resources.importer | nindent 8 }}
       workingDirectory:
         size: {{ .Values.resources.importerWorkdir }}
-      # Workaround TC-7588: TPA 3.1.1 refuses file credentials unless the
-      # directory is allow-listed. See docs/workarounds.md.
-      credentialPaths:
-        - /run/secrets/{{ .Values.lightwell.credentialsSecret }}
+      # IMPORTER_CREDENTIAL_PATHS cannot be set from this CR (3.1.2 has no such
+      # field): templates/importer-credential-paths.yaml sets it. TC-7588.
     createImporters:
       enabled: true
       importers:
