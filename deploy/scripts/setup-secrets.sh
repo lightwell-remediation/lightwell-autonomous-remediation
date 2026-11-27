@@ -130,5 +130,110 @@ else
   log_skip "no Lightwell credentials, skipping lightwell-lightwell (fine on path B)"
 fi
 
+
+# ---------------------------------------------------------------------------
+# Trusted Profile Analyzer (ADR-0013). Two modes, decided by secrets.env:
+#   TPA_URL set    an external instance, lightwell-tpa is filled from the four
+#                  TPA_* values (same result as scripts/push-secrets.sh tpa)
+#   TPA_URL empty  the instance this bootstrap installs (platform.tpa): the
+#                  credentials it needs are generated here, never in git
+# TPA_IN_CLUSTER=false skips both.
+# ---------------------------------------------------------------------------
+TPA_NS="${TPA_NS:-trusted-profile-analyzer}"
+KC_NS="${KC_NS:-keycloak}"
+
+# Created once. Rotating a generated value here would desynchronise it from the
+# realm that already imported it, so an existing Secret is left alone.
+random_secret() {
+  local ns="$1" name="$2"; shift 2
+  if oc get secret "$name" -n "$ns" >/dev/null 2>&1; then
+    log_skip "secret $name in $ns exists, left as is"
+    return
+  fi
+  local args=() key
+  for key in "$@"; do
+    args+=(--from-literal="$key=$(openssl rand -base64 24 | tr -d '/+=\n')")
+  done
+  oc create secret generic "$name" -n "$ns" "${args[@]}" >/dev/null
+  log_ok "$name in $ns (generated)"
+}
+
+ensure_namespace() {
+  oc get namespace "$1" >/dev/null 2>&1 || oc create namespace "$1" >/dev/null
+}
+
+if [[ "${TPA_IN_CLUSTER:-true}" == "false" ]]; then
+  log_skip "TPA_IN_CLUSTER=false, skipping the Trusted Profile Analyzer credentials"
+elif [[ -n "${TPA_URL:-}" ]]; then
+  apply_secret lightwell-tpa \
+    --from-literal="TPA_URL=$TPA_URL" \
+    --from-literal="TPA_TOKEN_URL=${TPA_TOKEN_URL:?TPA_TOKEN_URL is needed with TPA_URL}" \
+    --from-literal="TPA_CLIENT_ID=${TPA_CLIENT_ID:?TPA_CLIENT_ID is needed with TPA_URL}" \
+    --from-literal="TPA_CLIENT_SECRET=${TPA_CLIENT_SECRET:?TPA_CLIENT_SECRET is needed with TPA_URL}"
+else
+  log_step "Trusted Profile Analyzer credentials (in-cluster instance)"
+  ensure_namespace "$TPA_NS"
+
+  # The database role and password the operator jobs and the server use.
+  if ! oc get secret rhtpa-db -n "$TPA_NS" >/dev/null 2>&1; then
+    oc create secret generic rhtpa-db -n "$TPA_NS" \
+      --from-literal=username=trustify \
+      --from-literal=database=trustify \
+      --from-literal="password=$(openssl rand -base64 24 | tr -d '/+=\n')" \
+      --from-literal="postgres-password=$(openssl rand -base64 24 | tr -d '/+=\n')" >/dev/null
+    log_ok "rhtpa-db in $TPA_NS (generated)"
+  else
+    log_skip "secret rhtpa-db in $TPA_NS exists, left as is"
+  fi
+
+  # Lightwell OSV importers. The keys have to be exactly these names, each one
+  # becomes a file under /run/secrets/rhtpa-rhlw-creds.
+  if [[ -n "${LW_USERNAME:-}" && -n "${LW_PASSWORD:-}" ]]; then
+    oc create secret generic rhtpa-rhlw-creds -n "$TPA_NS" \
+      --from-literal="RH_LW_USERNAME=$LW_USERNAME" \
+      --from-literal="RH_LW_PASSWORD=$LW_PASSWORD" \
+      --dry-run=client -o yaml | oc apply -f - >/dev/null
+    log_ok "rhtpa-rhlw-creds in $TPA_NS"
+  else
+    # The instance mounts this Secret, so it has to exist for the pods to start.
+    # Empty values start the server and make the importers fail to authenticate.
+    oc get secret rhtpa-rhlw-creds -n "$TPA_NS" >/dev/null 2>&1 \
+      || oc create secret generic rhtpa-rhlw-creds -n "$TPA_NS" \
+           --from-literal=RH_LW_USERNAME= --from-literal=RH_LW_PASSWORD= >/dev/null
+    log_skip "no LW_USERNAME/LW_PASSWORD: TPA starts without Lightwell OSV records (path A needs them)"
+  fi
+
+  # The realm import lives in the Keycloak namespace, so the client secret and
+  # the console password are needed there too, with the same value.
+  if oc get namespace "$KC_NS" >/dev/null 2>&1; then
+    CLI_SECRET="$(oc get secret oidc-cli -n "$TPA_NS" -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+    [[ -n "$CLI_SECRET" ]] || CLI_SECRET="$(oc get secret oidc-cli -n "$KC_NS" -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+    [[ -n "$CLI_SECRET" ]] || CLI_SECRET="$(openssl rand -base64 24 | tr -d '/+=\n')"
+    for ns in "$TPA_NS" "$KC_NS"; do
+      oc create secret generic oidc-cli -n "$ns" \
+        --from-literal="client-secret=$CLI_SECRET" \
+        --dry-run=client -o yaml | oc apply -f - >/dev/null
+      log_ok "oidc-cli in $ns"
+    done
+    random_secret "$KC_NS" rhtpa-users admin-password
+
+    # What the pipeline reads. The route host is fixed by the operator
+    # (server<appDomain>), the token endpoint is the Keycloak's own host.
+    DOMAIN="$(oc get ingresscontroller.operator.openshift.io default -n openshift-ingress-operator \
+                -o jsonpath='{.status.domain}' 2>/dev/null || true)"
+    KC_HOST="${TPA_KEYCLOAK_HOST:-$(oc get keycloak -n "$KC_NS" -o jsonpath='{.items[0].spec.hostname.hostname}' 2>/dev/null || true)}"
+    if [[ -n "$DOMAIN" && -n "$KC_HOST" ]]; then
+      apply_secret lightwell-tpa \
+        --from-literal="TPA_URL=https://server-trusted-profile-analyzer.$DOMAIN" \
+        --from-literal="TPA_TOKEN_URL=https://$KC_HOST/realms/trustify/protocol/openid-connect/token" \
+        --from-literal="TPA_CLIENT_ID=cli" \
+        --from-literal="TPA_CLIENT_SECRET=$CLI_SECRET"
+    else
+      log_skip "could not find the ingress domain or the Keycloak host: set TPA_KEYCLOAK_HOST and run again to create lightwell-tpa"
+    fi
+  else
+    log_skip "no namespace $KC_NS (the cluster Keycloak): oidc-cli and lightwell-tpa not created, set KC_NS or install Keycloak (ADR-0013)"
+  fi
+fi
 echo
 log_info "done. Nothing was printed and nothing was written to git"

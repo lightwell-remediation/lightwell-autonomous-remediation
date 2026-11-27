@@ -1,0 +1,80 @@
+---
+# Red Hat Trusted Profile Analyzer, installed next to the pipeline so the sbom
+# task validates against an instance this cluster owns (ADR-0013).
+#
+# Layout follows the reference deployment at
+# https://github.com/rmarting/rhtpa-openshift-demo, minus its lab credentials:
+# every credential is a Secret created by deploy/scripts/setup-secrets.sh
+# (ADR-0007), none is rendered here.
+
+namespace: trusted-profile-analyzer
+
+operator:
+  name: rhtpa-operator
+  # stable-v3 carries 3.1.x. The package default channel (stable-v1.1) is the
+  # 2.x line, do not rely on it.
+  channel: stable-v3
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+  # Empty tracks the channel. 3.1.1 rejects the "Red Hat Lightwell:Maven"
+  # ecosystem (TC-7303, fixed in 3.1.2), see docs/workarounds.md.
+  startingCSV: ""
+
+# Ingress domain. The operator builds the console and API host as
+# server<appDomain>, so with appDomain "-trusted-profile-analyzer.<domain>" the
+# route is server-trusted-profile-analyzer.<domain>.
+clusterDomain: ""
+
+# Keycloak the instance signs in against. The realm "trustify" is imported into
+# the Keycloak that already runs on the cluster (the KeycloakRealmImport has to
+# live in the same namespace as the Keycloak custom resource).
+keycloak:
+  namespace: keycloak
+  # Name of the Keycloak custom resource. Verify: oc get keycloak -A
+  crName: keycloak
+  # Public host of that Keycloak, no scheme. Required.
+  host: ""
+
+database:
+  # registry.redhat.io/rhel9/postgresql-16, built to run as an arbitrary UID.
+  image: registry.redhat.io/rhel9/postgresql-16:latest
+  storage: 10Gi
+  storageClass: ""
+
+# Where TPA keeps the documents it ingests.
+#   s3          ObjectBucketClaim on NooBaa (ODF). Preferred, and what the
+#               reference deployment uses on a standard cluster.
+#   filesystem  a PVC. Use it when the cluster has no ODF.
+storage:
+  type: s3
+  # Fixed so the instance can name it. NooBaa bucket names are unique per
+  # NooBa instance, change it if a second instance shares the cluster.
+  bucketName: lightwell-trustify
+  storageClassName: openshift-storage.noobaa.io
+  s3Endpoint: ""      # empty derives https://s3-openshift-storage.<clusterDomain>:443
+  filesystemSize: 10Gi
+
+# Lightwell OSV importers (HTTP, Pulp discovery, basic auth). Credentials come
+# from the Secret mounted at /run/secrets/rhtpa-rhlw-creds, keys
+# RH_LW_USERNAME and RH_LW_PASSWORD.
+lightwell:
+  credentialsSecret: rhtpa-rhlw-creds
+  importers:
+    javaRemediated: true
+    pythonRemediated: true
+    javaPredisclosure: false
+
+secrets:
+  db: rhtpa-db              # keys: postgres-password, username, password, database
+  oidcCli: oidc-cli         # key: client-secret (also created in the Keycloak namespace)
+  users: rhtpa-users        # key: admin-password (Keycloak namespace), console login
+
+resources:
+  server:
+    requests: {cpu: 500m, memory: 2Gi}
+    limits: {memory: 4Gi}
+  importer:
+    requests: {cpu: 500m, memory: 2Gi}
+    limits: {memory: 4Gi}
+  importerWorkdir: 10Gi

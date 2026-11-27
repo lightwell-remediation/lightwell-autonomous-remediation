@@ -279,7 +279,7 @@ four of them are not. The whole map, as of 2026-10-20:
 | The Record Travels With the Run | Yes. Mounted as a ConfigMap, or fetched once from Lightwell by the first phase (path A, since 2026-10-27); one record per run, and a `vulnerability` parameter where the record bundles several. |
 | Repeated Alerts Do Not Produce Repeated Remediations | **Half.** A second run against an application already being remediated is refused. Nothing checks for an open pull request — and with no trigger, nothing re-fires to be refused. |
 | The Pull Request Is Built Where the Credentials Already Are | Vacuously — there is no branch build. See the note on the requirement. |
-| The Inventory Is Regenerated From the Remediated Build | Yes. *Validated Before Merge* against a TPA on a separate RHDP cluster ([workaround](../../docs/workarounds.md)); the result goes in the pull request body. |
+| The Inventory Is Regenerated From the Remediated Build | Yes. *Validated Before Merge* against a TPA ([ADR-0013](../../docs/adr/0013-trusted-profile-analyzer-in-cluster.md): in the cluster, pending validation; Milestone 1 used a separate RHDP cluster, [workaround](../../docs/workarounds.md)); the result goes in the pull request body. |
 | A Run Is Legible Without Reading Logs | **Half.** The Pipelines console shows the phase a run is in. Nothing survives it: the workspace is deleted per run and takes the phase documents with it. Each session's trace is kept and, where enabled, sent to MLflow after the run ([`agent-tracing.spec.md`](../observability/agent-tracing.spec.md)); the phase documents themselves still go with the workspace. |
 | The Alert Is Answered | **No.** There is no trigger to answer to. |
 | What the Cluster Runs Is in Git | Yes, since 2026-10-27: the remediation chart is reconciled by ArgoCD (`agents-remediation-pipeline`), and the BuildConfig's branch is `agents.runtimeImage.appRepoRef` in bootstrap-infra. Runs are not, by design. |
@@ -298,7 +298,7 @@ changing.
 |---|---|---|
 | A run starts from an alert | **OpenShift Pipelines** — Tekton Triggers (`EventListener`) | CRDs present, nothing deployed |
 | The pull request is built where the credentials are | **OpenShift Pipelines**, and the **internal registry** with `BuildConfig` | In use for the agent image |
-| The inventory is regenerated and validated | **Red Hat Trusted Profile Analyzer** | Instance on a separate RHDP cluster (Milestone 1 workaround); operator 3.1.1 installed here, no instance |
+| The inventory is regenerated and validated | **Red Hat Trusted Profile Analyzer** | Installed by the bootstrap (`platform.tpa`, ADR-0013, pending validation); Milestone 1 used an instance on a separate RHDP cluster |
 | A run is legible | **OpenShift Pipelines** console; **MLflow** (RHOAI) for session traces | Pipelines in use; MLflow receives session traces (ADR-0010) |
 | What the cluster runs is in git | **OpenShift GitOps** | In use, 10 Applications, the remediation Pipeline among them since 2026-10-27 |
 | Storage for the two workspaces | **OpenShift Data Foundation** | In use — ceph-rbd and cephfs |

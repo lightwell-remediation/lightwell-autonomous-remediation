@@ -23,6 +23,10 @@ platform:
     enabled: true
   developerHub:
     enabled: false
+  # Needs platform.tpa.keycloak.host (deploy/values/local.yaml), see
+  # gitops/deployments/platform/tpa/README.md. Set false to skip TPA.
+  tpa:
+    enabled: true
 
 agents:
   enabled: true

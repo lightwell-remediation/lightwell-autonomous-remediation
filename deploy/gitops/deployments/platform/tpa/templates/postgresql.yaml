@@ -1,0 +1,94 @@
+---
+# The operator does not deploy a database: it expects one and runs the
+# create-database and migrate jobs against it. Credentials are the Secret
+# {{ .Values.secrets.db }}, created by setup-secrets.sh.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhtpa-postgresql
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: rhtpa-postgresql
+    app.kubernetes.io/part-of: rhtpa
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  selector:
+    app.kubernetes.io/name: rhtpa-postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rhtpa-postgresql
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: rhtpa-postgresql
+    app.kubernetes.io/part-of: rhtpa
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  serviceName: rhtpa-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rhtpa-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rhtpa-postgresql
+        app.kubernetes.io/part-of: rhtpa
+    spec:
+      containers:
+        - name: postgresql
+          image: {{ .Values.database.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRESQL_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.db }}, key: postgres-password}}
+            - name: POSTGRESQL_USER
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.db }}, key: username}}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.db }}, key: password}}
+            - name: POSTGRESQL_DATABASE
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.db }}, key: database}}
+            - name: POSTGRESQL_MAX_CONNECTIONS
+              value: "200"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgsql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: rhtpa-postgresql
+          app.kubernetes.io/part-of: rhtpa
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.database.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.database.storage }}

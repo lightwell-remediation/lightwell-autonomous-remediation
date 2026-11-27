@@ -1,0 +1,5 @@
+---
+# helm lint only: the parent chart supplies these.
+clusterDomain: apps.example.com
+keycloak:
+  host: sso.apps.example.com

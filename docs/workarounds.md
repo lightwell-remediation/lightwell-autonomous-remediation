@@ -10,6 +10,10 @@ Active workarounds applied in this project. Each entry documents a known issue a
   [ROADMAP — Phase 3](ROADMAP.md#phase-3-inventory-validation-tpa)
 - **Expected resolution**: Milestone 2 (RH One 2027) — TPA on the pipeline's
   own cluster
+- **Status (2026-11-26)**: the in-cluster install is written
+  ([ADR-0013](adr/0013-trusted-profile-analyzer-in-cluster.md),
+  `deploy/gitops/deployments/platform/tpa/`, `platform.tpa`) and not yet
+  validated on a cluster. Delete this entry when it is.
 
 ### Problem
 
@@ -54,3 +58,52 @@ loaded: point the four `TPA_*` values in `secrets/secrets.env` at it, run
 The pull request's *Inventory validated in Trusted Profile Analyzer* section
 should show the vulnerability affected in the baseline and gone on the branch.
 Then delete this entry. No code changes — the instance is configuration.
+
+## TPA 3.1.1 refuses Lightwell credentials mounted from a Secret
+
+- **Date**: 2026-11-26 (applied in the `tpa` chart, not yet run on a cluster)
+- **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1
+- **Bug/Issue**: [TC-7588](https://redhat.atlassian.net/browse/TC-7588)
+- **Expected resolution**: not announced
+
+### Problem
+
+The importer logs `file credential source is disabled; set
+IMPORTER_CREDENTIAL_PATHS to allow one or more paths` and never reads the
+Lightwell repositories.
+
+### Workaround
+
+The instance sets `modules.importer.credentialPaths` to the directory the
+`rhtpa-rhlw-creds` Secret is mounted at. Found in
+[rmarting/rhtpa-openshift-demo](https://github.com/rmarting/rhtpa-openshift-demo#unable-to-authenticate-to-lightwell-network-repositories).
+
+### How to verify the fix
+
+Remove `credentialPaths` from `templates/trustedprofileanalyzer.yaml` and check
+that the importer logs no credential error. Then delete this entry.
+
+## TPA 3.1.1 rejects the Lightwell Maven ecosystem
+
+- **Date**: 2026-11-26 (to confirm on the cluster: depends on the version `stable-v3` resolves to)
+- **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1
+- **Bug/Issue**: [TC-7303](https://redhat.atlassian.net/browse/TC-7303)
+- **Expected resolution**: TPA 3.1.2
+
+### Problem
+
+The importer rejects every record whose ecosystem is `Red Hat Lightwell:Maven`
+(`unknown variant ... expected Ecosystem`), so the Java remediation records
+never reach the instance.
+
+### Workaround
+
+None applied in the chart. If `stable-v3` still resolves to 3.1.1, upload the
+run's own OSV record to TPA through the API before the `sbom` step, or wait for
+3.1.2. Decide on the cluster: check `oc get csv -n trusted-profile-analyzer`.
+
+### How to verify the fix
+
+`make validate` reports no Lightwell importer errors and a CVE fixed by a
+Lightwell rebuild shows as fixed in the pull request's TPA section. Then delete
+this entry.

@@ -1,0 +1,154 @@
+---
+# The instance. Adapted from rmarting/rhtpa-openshift-demo (base/40-rhtpa and
+# ocp/40-rhtpa). The Lightwell OSV importers are what let TPA say the Lightwell
+# rebuild fixes a CVE; every other importer stays off (they pull gigabytes).
+apiVersion: rhtpa.io/v1
+kind: TrustedProfileAnalyzer
+metadata:
+  name: rhtpa
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: rhtpa
+    app.kubernetes.io/part-of: rhtpa
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    # The CRD arrives with the operator.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  # The leading hyphen is required.
+  appDomain: -trusted-profile-analyzer.{{ required "clusterDomain is required" .Values.clusterDomain }}
+  exploitIntelligence:
+    enabled: false
+  infrastructure:
+    port: 9010
+  metrics:
+    enabled: false
+  tracing:
+    enabled: false
+  replicas: 1
+  partOf: trustify
+  readOnly: false
+  openshift:
+    useServiceCa: true
+  oidc:
+    issuerUrl: https://{{ required "keycloak.host is required" .Values.keycloak.host }}/realms/trustify
+    uiScope: openid
+    loadUser: true
+    clients:
+      frontend:
+        clientId: frontend
+      cli:
+        clientId: cli
+        clientSecret:
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.oidcCli }}
+              key: client-secret
+  database:
+    host: rhtpa-postgresql
+    port: "5432"
+    name: trustify
+    username: trustify
+    password:
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.secrets.db }}
+          key: password
+    sslMode: disable
+  createDatabase:
+    name: trustify
+    username: trustify
+    password:
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.secrets.db }}
+          key: password
+  migrateDatabase:
+    username: trustify
+    password:
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.secrets.db }}
+          key: password
+  {{- if eq .Values.storage.type "s3" }}
+  storage:
+    type: s3
+    bucket: {{ .Values.storage.bucketName }}
+    region: {{ .Values.storage.s3Endpoint | default (printf "https://s3-openshift-storage.%s:443" .Values.clusterDomain) }}
+    accessKey:
+      valueFrom:
+        secretKeyRef:
+          name: tpa-bucket-claim
+          key: AWS_ACCESS_KEY_ID
+    secretKey:
+      valueFrom:
+        secretKeyRef:
+          name: tpa-bucket-claim
+          key: AWS_SECRET_ACCESS_KEY
+  {{- else }}
+  storage:
+    type: filesystem
+    size: {{ .Values.storage.filesystemSize }}
+  {{- end }}
+  extraVolumes:
+    - name: {{ .Values.lightwell.credentialsSecret }}
+      secret:
+        secretName: {{ .Values.lightwell.credentialsSecret }}
+  extraVolumeMounts:
+    - name: {{ .Values.lightwell.credentialsSecret }}
+      mountPath: /run/secrets/{{ .Values.lightwell.credentialsSecret }}
+      readOnly: true
+  modules:
+    createDatabase:
+      enabled: true
+    migrateDatabase:
+      enabled: true
+    server:
+      enabled: true
+      replicas: 1
+      ingress: {}
+      recommendPatterns:
+        - "^(.+)[.-]redhat-[0-9]+$"
+        - "^(.+)[.-]rhlw-[0-9]+$"
+      resources:
+        {{- toYaml .Values.resources.server | nindent 8 }}
+      rust:
+        logFilter: info
+    importer:
+      enabled: true
+      replicas: 1
+      concurrency: 1
+      resources:
+        {{- toYaml .Values.resources.importer | nindent 8 }}
+      workingDirectory:
+        size: {{ .Values.resources.importerWorkdir }}
+      # Workaround TC-7588: TPA 3.1.1 refuses file credentials unless the
+      # directory is allow-listed. See docs/workarounds.md.
+      credentialPaths:
+        - /run/secrets/{{ .Values.lightwell.credentialsSecret }}
+    createImporters:
+      enabled: true
+      importers:
+        {{- $creds := printf "/run/secrets/%s" .Values.lightwell.credentialsSecret }}
+        {{- range $name, $spec := dict
+              "redhat-lightwell-osv-java-remediated" (dict "on" .Values.lightwell.importers.javaRemediated "kind" "java" "stage" "remediated" "what" "Java Remediated")
+              "redhat-lightwell-osv-python-remediated" (dict "on" .Values.lightwell.importers.pythonRemediated "kind" "python" "stage" "remediated" "what" "Python Remediated")
+              "redhat-lightwell-osv-java-predisclosure" (dict "on" .Values.lightwell.importers.javaPredisclosure "kind" "java" "stage" "predisclosure" "what" "Java Predisclosure") }}
+        {{ $name }}:
+          http:
+            description: Red Hat Lightwell Security Data on {{ $spec.what }} repository
+            disabled: {{ not $spec.on }}
+            period: 1d
+            source: https://packages.redhat.com/lightwell/osv/{{ $spec.kind }}/{{ $spec.stage }}/
+            discovery:
+              type: pulp
+            auth:
+              method:
+                type: basic
+                username:
+                  type: file
+                  value: {{ $creds }}/RH_LW_USERNAME
+                password:
+                  type: file
+                  value: {{ $creds }}/RH_LW_PASSWORD
+        {{- end }}

@@ -1,4 +1,5 @@
-# Cluster bootstrap for Lightwell Autonomous Remediation.
+		f=""; [ -f "$$c/ci/lint-values.yaml" ] && f="-f $$c/ci/lint-values.yaml"; \
+		helm template test "$$c" $$f >/dev/null || exit 1; \# Cluster bootstrap for Lightwell Autonomous Remediation.
 #
 # Contract:   ../specs/platform/cluster-bootstrap.spec.md
 # Decisions:  ../docs/adr/0006-cluster-bootstrap-topology.md
@@ -121,7 +122,8 @@ template:
 		helm template $(RELEASE) $(CHART) -f "$$p" >/dev/null || exit 1; \
 	done
 	@for c in gitops/deployments/*/*/; do \
-		helm template test "$$c" >/dev/null || exit 1; \
+		f=""; [ -f "$$c/ci/lint-values.yaml" ] && f="-f $$c/ci/lint-values.yaml"; \
+		helm template test "$$c" $$f >/dev/null || exit 1; \
 	done
 	@echo "all charts render"
 

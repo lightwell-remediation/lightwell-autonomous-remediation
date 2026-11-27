@@ -38,8 +38,9 @@
 - [x] Show the inventory regenerated from the remediated build and validated in
       Trusted Profile Analyzer (→ Phase 3). Validated on 2026-10-23 against a TPA
       on a separate RHDP cluster ([ROADMAP — Phase 3](ROADMAP.md#phase-3-inventory-validation-tpa),
-      [workarounds](workarounds.md)); TPA is not installed in the demo cluster in
-      Milestone 1 ([replicate.md — Limitations](replicate.md#limitations-of-milestone-1))
+      [workarounds](workarounds.md)); the bootstrap now installs TPA in the cluster
+      ([ADR-0013](adr/0013-trusted-profile-analyzer-in-cluster.md), pending
+      validation, [replicate.md — Limitations](replicate.md#limitations-of-milestone-1))
 - [x] Use RHDP MaaS for model serving. The model is `claude-sonnet-4-6`, the
       only one that passed the comparison
       ([model comparison](measurements/model-comparison-2026-10-19.md)); the

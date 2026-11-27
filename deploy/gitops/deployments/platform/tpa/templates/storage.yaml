@@ -1,0 +1,33 @@
+{{- if eq .Values.storage.type "s3" }}
+---
+# Bucket for the documents TPA ingests. NooBaa creates a Secret and a ConfigMap
+# named like the claim with the access keys, the instance reads them from there.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: tpa-bucket-claim
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  bucketName: {{ .Values.storage.bucketName }}
+  storageClassName: {{ .Values.storage.storageClassName }}
+{{- else }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage
+  namespace: {{ .Values.namespace }}
+  labels:
+    type: importer-working-directory
+    app.kubernetes.io/part-of: rhtpa
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.storage.filesystemSize }}
+  volumeMode: Filesystem
+{{- end }}

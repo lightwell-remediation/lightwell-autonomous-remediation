@@ -187,6 +187,45 @@ oc get secret lightwell-lightwell -n "$NAMESPACE" >/dev/null 2>&1 \
   && log_ok "secret lightwell-lightwell" \
   || log_skip "no secret lightwell-lightwell: fine on path B, path A needs it (docs/replicate.md)"
 
+log_step "Trusted Profile Analyzer"
+TPA_NS="${TPA_NS:-trusted-profile-analyzer}"
+if oc get ns "$TPA_NS" >/dev/null 2>&1; then
+  check_csv "$TPA_NS" rhtpa "Trusted Profile Analyzer"
+  if oc get crd trustedprofileanalyzers.rhtpa.io >/dev/null 2>&1; then
+    # Deployments named server and importer appear after the create-db and
+    # migrate-db jobs, which can take several minutes on first install.
+    for d in server importer; do
+      ready="$(oc get deployment "$d" -n "$TPA_NS" -o jsonpath='{.status.availableReplicas}' 2>/dev/null)"
+      [[ "${ready:-0}" -ge 1 ]] && log_ok "TPA deployment $d available" || fail "TPA deployment $d is not available"
+    done
+    # The pipeline's own view: a token with the cli client, then an API call.
+    # Reads the Secret the sbom task reads, so this fails where the run would.
+    if oc get secret lightwell-tpa -n "$NAMESPACE" >/dev/null 2>&1; then
+      tpa_val() { oc get secret lightwell-tpa -n "$NAMESPACE" -o jsonpath="{.data.$1}" | base64 -d; }
+      TOKEN="$(curl -sk --max-time 20 -d grant_type=client_credentials \
+                 -d "client_id=$(tpa_val TPA_CLIENT_ID)" --data-urlencode "client_secret=$(tpa_val TPA_CLIENT_SECRET)" \
+                 "$(tpa_val TPA_TOKEN_URL)" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+      if [[ -z "$TOKEN" ]]; then
+        fail "TPA: no token from the Keycloak realm trustify (client cli)"
+      else
+        code="$(curl -sk --max-time 20 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" \
+                  "$(tpa_val TPA_URL)/api/v3/sbom?limit=1")"
+        [[ "$code" == "200" ]] && log_ok "TPA API answers with the cli token" || fail "TPA API returned HTTP $code"
+      fi
+    else
+      fail "no secret lightwell-tpa in $NAMESPACE, run make secrets"
+    fi
+    # Lightwell records: the importers log on every run, errors name the cause.
+    errs="$(oc logs deployment/importer -n "$TPA_NS" --tail=300 2>/dev/null | grep -c -E 'ERROR.*(credential|auth|Lightwell)' || true)"
+    [[ "${errs:-0}" -eq 0 ]] && log_ok "TPA importer shows no Lightwell credential errors" \
+      || fail "TPA importer logged ${errs} Lightwell errors (docs/workarounds.md: TC-7588, TC-7303)"
+  else
+    fail "TPA operator installed but the TrustedProfileAnalyzer CRD is missing"
+  fi
+else
+  log_skip "no namespace $TPA_NS, TPA is not part of this install (platform.tpa.enabled=false or an external TPA_URL)"
+fi
+
 log_step "Runtime image"
 TAG="$(oc get buildconfig lightwell-agent-runtime -n "$NAMESPACE" -o jsonpath='{.spec.output.to.name}' 2>/dev/null)"
 if [[ -n "$TAG" ]]; then

@@ -42,6 +42,19 @@ set -a
 . "$SECRETS"
 set +a
 
+# In-cluster TPA (ADR-0013): secrets.env leaves TPA_* empty and make secrets
+# put the values in the lightwell-tpa Secret, so read them from there.
+if [ -z "${TPA_URL:-}" ] && command -v oc >/dev/null 2>&1; then
+  tpa_secret() { oc get secret lightwell-tpa -n "${AGENT_NS:-lightwell-agents}" \
+                   -o "jsonpath={.data.$1}" 2>/dev/null | base64 -d 2>/dev/null; }
+  TPA_URL="$(tpa_secret TPA_URL)"
+  TPA_TOKEN_URL="$(tpa_secret TPA_TOKEN_URL)"
+  TPA_CLIENT_ID="$(tpa_secret TPA_CLIENT_ID)"
+  TPA_CLIENT_SECRET="$(tpa_secret TPA_CLIENT_SECRET)"
+  export TPA_URL TPA_TOKEN_URL TPA_CLIENT_ID TPA_CLIENT_SECRET
+  [ -z "$TPA_URL" ] || log "using the in-cluster TPA from the lightwell-tpa Secret"
+fi
+
 app="${APP_REPO:-}"
 ref=""
 file=""

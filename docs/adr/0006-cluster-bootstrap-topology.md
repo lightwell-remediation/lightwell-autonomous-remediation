@@ -120,6 +120,7 @@ parallel.
 | 0 | MLflow, agent namespace and ServiceAccount |
 | 1 | Runtime image builds |
 | 2 | Smoke pipeline |
+| 3 | Trusted Profile Analyzer ([ADR-0013](0013-trusted-profile-analyzer-in-cluster.md)) |
 | 5 | Developer Hub (off) |
 
 ## Consequences

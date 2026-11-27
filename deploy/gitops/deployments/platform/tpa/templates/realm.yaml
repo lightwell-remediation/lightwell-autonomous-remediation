@@ -1,0 +1,325 @@
+{{- /* Imported into the existing Keycloak, so it lands in that namespace. Adapted from rmarting/rhtpa-openshift-demo, without its lab users (only admin, password from a Secret) */ -}}
+# KeycloakRealmImport for the trustify realm used by RHTPA.
+#
+# Clients follow the trustify Keycloak setup (frontend and cli):
+# https://github.com/guacsec/trustify/tree/main/docs/book/modules/admin/pages/keycloak-setup
+#
+# Keycloak 25+ does not put `sub` or realm roles into the access token unless
+# the `basic` and `roles` client scopes exist and are assigned. This import
+# lists clientScopes, which skips Keycloak's built-in scopes, so those scopes
+# are declared here.
+#
+# TPA grants permissions from the token `scope` claim. The sample JSON puts
+# create/update/delete on the frontend client as default scopes, which would
+# make every console user an administrator. Those write scopes stay optional.
+# trustify-user only receives read:document. trustify-manager and
+# trustify-admin are carried in realm_access.roles for the authenticator.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: rhtpa
+  namespace: {{ .Values.keycloak.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  labels:
+    app.kubernetes.io/name: rhtpa-realm
+    app.kubernetes.io/part-of: keycloak
+spec:
+  keycloakCRName: {{ .Values.keycloak.crName }}
+  placeholders:
+    CLI_CLIENT_SECRET:
+      secret:
+        name: {{ .Values.secrets.oidcCli }}
+        key: client-secret
+    RHTPA_ADMIN_PASSWORD:
+      secret:
+        name: {{ .Values.secrets.users }}
+        key: admin-password
+  realm:
+    realm: trustify
+    enabled: true
+    displayName: Red Hat Trusted Profile Analyzer
+    sslRequired: external
+    registrationAllowed: false
+    resetPasswordAllowed: false
+    loginWithEmailAllowed: true
+    accessTokenLifespan: 900
+    roles:
+      realm:
+        - name: trustify-user
+          description: Read-only Trusted Profile Analyzer user
+        - name: trustify-manager
+          description: Can create, update, and delete documents
+        - name: trustify-admin
+          description: Trusted Profile Analyzer administrator
+        - name: default-roles-trustify
+          description: Default roles for every user in the trustify realm
+          composite: true
+          composites:
+            realm:
+              - trustify-user
+    defaultRole:
+      name: default-roles-trustify
+      composite: true
+    clientScopes:
+      - name: basic
+        description: OpenID Connect scope for add all basic claims to the token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            consentRequired: false
+            config:
+              access.token.claim: "true"
+              introspection.token.claim: "true"
+          - name: auth_time
+            protocol: openid-connect
+            protocolMapper: oidc-usersessionmodel-note-mapper
+            consentRequired: false
+            config:
+              user.session.note: AUTH_TIME
+              claim.name: auth_time
+              jsonType.label: long
+              access.token.claim: "true"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+      - name: roles
+        description: OpenID Connect scope for add user roles to the access token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: realm roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            consentRequired: false
+            config:
+              claim.name: realm_access.roles
+              jsonType.label: String
+              multivalued: "true"
+              access.token.claim: "true"
+              introspection.token.claim: "true"
+          - name: audience resolve
+            protocol: openid-connect
+            protocolMapper: oidc-audience-resolve-mapper
+            consentRequired: false
+            config:
+              access.token.claim: "true"
+              introspection.token.claim: "true"
+      - name: profile
+        description: "OpenID Connect built-in scope: profile"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: "${profileScopeConsentText}"
+        protocolMappers:
+          - name: username
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              user.attribute: username
+              claim.name: preferred_username
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: given name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              user.attribute: firstName
+              claim.name: given_name
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: family name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              user.attribute: lastName
+              claim.name: family_name
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: full name
+            protocol: openid-connect
+            protocolMapper: oidc-full-name-mapper
+            consentRequired: false
+            config:
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
+      - name: email
+        description: "OpenID Connect built-in scope: email"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: "${emailScopeConsentText}"
+        protocolMappers:
+          - name: email
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              user.attribute: email
+              claim.name: email
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
+              introspection.token.claim: "true"
+          - name: email verified
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              user.attribute: emailVerified
+              claim.name: email_verified
+              jsonType.label: boolean
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "true"
+              introspection.token.claim: "true"
+      - name: web-origins
+        description: OpenID Connect scope for add allowed web origins to the access token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: allowed web origins
+            protocol: openid-connect
+            protocolMapper: oidc-allowed-origins-mapper
+            consentRequired: false
+            config:
+              access.token.claim: "true"
+              introspection.token.claim: "true"
+      - name: "read:document"
+        description: Read Trusted Profile Analyzer documents
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+      - name: "create:document"
+        description: Create Trusted Profile Analyzer documents
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+      - name: "update:document"
+        description: Update Trusted Profile Analyzer documents
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+      - name: "delete:document"
+        description: Delete Trusted Profile Analyzer documents
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+    clients:
+      - clientId: frontend
+        name: RHTPA console
+        clientAuthenticatorType: client-secret
+        enabled: true
+        publicClient: true
+        protocol: openid-connect
+        standardFlowEnabled: true
+        implicitFlowEnabled: true
+        # The console uses the authorization code flow. Password grant stays off.
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        fullScopeAllowed: true
+        rootUrl: https://server-trusted-profile-analyzer.{{ .Values.clusterDomain }}
+        baseUrl: /
+        redirectUris:
+          - https://server-trusted-profile-analyzer.{{ .Values.clusterDomain }}
+          - https://server-trusted-profile-analyzer.{{ .Values.clusterDomain }}/
+          - https://server-trusted-profile-analyzer.{{ .Values.clusterDomain }}/*
+          - http://localhost:8080/*
+        webOrigins:
+          - "*"
+        defaultClientScopes:
+          - basic
+          - email
+          - profile
+          - roles
+          - web-origins
+          - "read:document"
+          - "create:document"
+          - "update:document"
+          - "delete:document"
+        optionalClientScopes:
+          - address
+          - microprofile-jwt
+          - offline_access
+          - phone
+        attributes:
+          access.token.lifespan: "300"
+          post.logout.redirect.uris: "+"
+          client.use.lightweight.access.token.enabled: "false"
+      - clientId: cli
+        name: RHTPA CLI
+        clientAuthenticatorType: client-secret
+        enabled: true
+        publicClient: false
+        protocol: openid-connect
+        secret: "${CLI_CLIENT_SECRET}"
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        fullScopeAllowed: true
+        defaultClientScopes:
+          - basic
+          - email
+          - profile
+          - roles
+          - web-origins
+          - "read:document"
+          - "create:document"
+          - "update:document"
+          - "delete:document"
+        optionalClientScopes:
+          - address
+          - microprofile-jwt
+          - offline_access
+          - phone
+        attributes:
+          access.token.lifespan: "300"
+          post.logout.redirect.uris: "+"
+          client.use.lightweight.access.token.enabled: "false"
+    users:
+      - username: admin
+        enabled: true
+        email: admin@example.com
+        emailVerified: true
+        firstName: Admin
+        lastName: User
+        realmRoles:
+          - trustify-admin
+          - trustify-manager
+          - trustify-user
+        credentials:
+          - type: password
+            temporary: false
+            value: "${RHTPA_ADMIN_PASSWORD}"
+      - username: service-account-cli
+        enabled: true
+        serviceAccountClientId: cli
+        realmRoles:
+          - trustify-manager
+          - trustify-user

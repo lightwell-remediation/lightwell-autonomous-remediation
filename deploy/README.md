@@ -21,6 +21,7 @@ reconciles the platform, the Makefile does the three things GitOps cannot own.
 | `lightwell-agents` namespace | ServiceAccount, container budget, credentials, builds and runs |
 | Agent runtime image | Two chained BuildConfigs into the internal registry |
 | Smoke pipeline | Two agent shaped tasks in parallel, plus a MaaS credential check |
+| Trusted Profile Analyzer | `trusted-profile-analyzer` namespace: operator (`stable-v3`), PostgreSQL, a NooBaa bucket, the `trustify` realm in the cluster's Keycloak and the instance with the Lightwell OSV importers ([ADR-0013](../docs/adr/0013-trusted-profile-analyzer-in-cluster.md)). Needs `platform.tpa.keycloak.host`, about 1.2 CPU and 5 GiB, see [its README](gitops/deployments/platform/tpa/README.md) |
 
 Developer Hub is scaffolded and off. See
 [its README](gitops/deployments/platform/developer-hub/README.md).

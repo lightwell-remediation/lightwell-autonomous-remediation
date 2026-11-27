@@ -88,6 +88,31 @@ platform:
     channel: fast
     startingCSV: ""
 
+  # Red Hat Trusted Profile Analyzer (wave 3, ADR-0013). Operator, PostgreSQL,
+  # document storage, the trustify realm in the cluster's Keycloak and the
+  # instance with the Lightwell OSV importers. The sbom task validates against
+  # it. Credentials are never here: make secrets creates them (ADR-0007).
+  tpa:
+    enabled: true
+    namespace: trusted-profile-analyzer
+    # stable-v3 carries 3.1.x. Empty startingCSV tracks the channel, 3.1.1
+    # rejects the Lightwell Maven ecosystem (TC-7303, fixed in 3.1.2).
+    channel: stable-v3
+    startingCSV: ""
+    # s3 needs ODF (NooBaa). Use filesystem on a cluster without it.
+    storage:
+      type: s3
+    # The Keycloak that already runs on the cluster. Verify the name and the
+    # host with: oc get keycloak -A; oc get route -n <namespace>
+    keycloak:
+      namespace: keycloak
+      crName: keycloak
+      host: ""
+    lightwellImporters:
+      javaRemediated: true
+      pythonRemediated: true
+      javaPredisclosure: false
+
 # ---------------------------------------------------------------------------
 # Agents: the namespace a remediation run happens in.
 # ---------------------------------------------------------------------------

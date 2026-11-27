@@ -1,0 +1,8 @@
+---
+apiVersion: v2
+name: tpa
+description: Red Hat Trusted Profile Analyzer (operator, database, storage, realm and instance) with the Lightwell OSV importers
+type: application
+version: 0.1.0
+# Operator package rhtpa-operator, channel stable-v3.
+appVersion: "3.1"

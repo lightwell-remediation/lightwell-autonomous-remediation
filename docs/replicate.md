@@ -107,7 +107,7 @@ GPU. Breakdown in [deploy/README.md — Capacity](../deploy/README.md#capacity).
 
 Fill the credentials in, once, with `APP_REPO=<you>/<app>` from step 1. On
 path B leave the `LW_*` values empty, and on both leave the `TPA_*` values
-empty (see [Limitations](#limitations-of-milestone-1)):
+empty to use the in-cluster TPA (see [Limitations](#limitations-of-milestone-1)):
 
 ```bash
 cp secrets/secrets.template.env secrets/secrets.env
@@ -311,14 +311,17 @@ MaaS session; size the parallelism to the cluster and the gateway's limits.
 - **No Agent Sandbox / OpenShell yet.** The agent's isolation is the pod plus
   a per-role permission policy ([agent-runtime.md](agent-runtime.md)).
 - **Developer Hub is scaffolded and off.**
-- **Trusted Profile Analyzer is not part of the replication.** The `sbom`
-  task can upload the regenerated inventory to a TPA and compare it with the
-  application's baseline, but Milestone 1 pointed it at an existing instance
-  on a separate cluster, loaded with the Lightwell records, which a replicator
-  does not have ([workarounds](workarounds.md)). Leave the `TPA_*` values
-  empty: the run records that there was nothing to validate against and
-  delivers without that section. Milestone 2 installs TPA in the same
-  cluster as part of the bootstrap ([ROADMAP](ROADMAP.md)).
+- **Trusted Profile Analyzer needs a Keycloak and ODF.** The bootstrap
+  installs TPA in the same cluster (`platform.tpa`,
+  [ADR-0013](adr/0013-trusted-profile-analyzer-in-cluster.md)), signs it in
+  against the Keycloak that already runs there and keeps its documents in a
+  NooBaa bucket. Set `platform.tpa.keycloak.host` in `deploy/values/local.yaml`
+  (preflight prints the Keycloak it finds), or `platform.tpa.enabled: false`
+  to run without TPA: the run records that there was nothing to validate
+  against and delivers without that section. On path A the importers need
+  the `LW_*` values to load the Lightwell records. The instance is written and
+  pending validation on a cluster. Register the baseline once with
+  `scripts/tpa-onboard.sh` before the first run.
 - **The Lightwell rebuilds are credentialed.** Without a Lightwell account,
   take path B; the replays of steps 0 and 5 work on either path, since they
   use recorded phase outputs and no vulnerability record.

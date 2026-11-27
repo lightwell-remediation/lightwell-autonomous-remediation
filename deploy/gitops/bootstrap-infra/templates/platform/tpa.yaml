@@ -1,0 +1,54 @@
+{{- if and .Values.platform.enabled .Values.platform.tpa.enabled }}
+---
+# Red Hat Trusted Profile Analyzer next to the pipeline (ADR-0013). The sbom
+# task validates the regenerated inventory against it, so no second cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-tpa
+  namespace: {{ .Values.bootstrap.argoNamespace }}
+  annotations:
+    # After the operators (-5) and the DSC. The chart orders its own parts.
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.bootstrap.project }}
+  destination:
+    name: in-cluster
+    namespace: {{ .Values.platform.tpa.namespace }}
+  source:
+    repoURL: {{ .Values.bootstrap.repoURL }}
+    targetRevision: {{ .Values.bootstrap.targetRevision }}
+    path: {{ include "bootstrap.path" (dict "ctx" . "chart" "platform/tpa") }}
+    helm:
+      valuesObject:
+        namespace: {{ .Values.platform.tpa.namespace }}
+        operator:
+          channel: {{ .Values.platform.tpa.channel | quote }}
+          startingCSV: {{ .Values.platform.tpa.startingCSV | quote }}
+        clusterDomain: {{ .Values.cluster.domain | quote }}
+        keycloak:
+          namespace: {{ .Values.platform.tpa.keycloak.namespace }}
+          crName: {{ .Values.platform.tpa.keycloak.crName }}
+          host: {{ .Values.platform.tpa.keycloak.host | quote }}
+        storage:
+          type: {{ .Values.platform.tpa.storage.type }}
+        lightwell:
+          importers:
+            {{- toYaml .Values.platform.tpa.lightwellImporters | nindent 12 }}
+  syncPolicy:
+    automated:
+      # An operator and its database are not pruned by a values edit.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 20s
+        maxDuration: 5m
+        factor: 2
+{{- end }}

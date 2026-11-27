@@ -115,6 +115,7 @@ check_channel() {
 check_channel openshift-gitops-operator      latest      "OpenShift GitOps"
 check_channel openshift-pipelines-operator-rh latest     "OpenShift Pipelines"
 check_channel rhods-operator                 stable-3.5  "OpenShift AI"
+check_channel rhtpa-operator                 stable-v3   "Trusted Profile Analyzer"
 
 log_step "What is already installed"
 PRESET="cluster-plain.yaml"
@@ -141,10 +142,30 @@ elif oc get crd argocds.argoproj.io >/dev/null 2>&1; then
 else
   log_ok "no GitOps operator, make gitops installs it"
 fi
+# Trusted Profile Analyzer (platform.tpa, ADR-0013) needs three things this
+# bootstrap does not install: a Keycloak to sign in against, document storage
+# (NooBaa from ODF, or set platform.tpa.storage.type=filesystem) and room.
+TPA_SUB="$(oc get subscriptions.operators.coreos.com -A \
+  -o jsonpath='{range .items[?(@.spec.name=="rhtpa-operator")]}{.metadata.namespace}{"/"}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -1)"
+if [[ -n "$TPA_SUB" ]]; then
+  log_skip "the rhtpa-operator Subscription already exists ($TPA_SUB): the platform-tpa Application would add a second one, delete it or set platform.tpa.enabled=false"
+else
+  log_ok "no rhtpa-operator Subscription, platform-tpa installs it"
+fi
+KC_FOUND="$(oc get keycloaks.k8s.keycloak.org -A \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{" host="}{.spec.hostname.hostname}{"\n"}{end}' 2>/dev/null)"
+if [[ -n "$KC_FOUND" ]]; then
+  while read -r kc; do log_ok "Keycloak for TPA: $kc (set platform.tpa.keycloak.* to match)"; done <<<"$KC_FOUND"
+else
+  log_skip "no Keycloak custom resource: TPA signs in against one (ADR-0013). Install RHBK or set platform.tpa.enabled=false in deploy/values/local.yaml"
+fi
+oc get storageclass openshift-storage.noobaa.io >/dev/null 2>&1 \
+  && log_ok "NooBaa StorageClass present, TPA documents go to an ObjectBucketClaim" \
+  || log_skip "no openshift-storage.noobaa.io class: set platform.tpa.storage.type=filesystem"
 
 log_step "Capacity"
 # Rough: the platform plus two parallel sessions plus a build needs around
-# 14 CPU and 37 GiB of requests on top of what the cluster already runs.
+# 14 CPU and 37 GiB of requests (TPA adds about 1.2 CPU and 5 GiB: server and importer 2 GiB each, PostgreSQL) on top of what the cluster already runs.
 ALLOC_CPU="$(oc get nodes -o jsonpath='{range .items[*]}{.status.allocatable.cpu}{"\n"}{end}' 2>/dev/null | sed 's/m$//' | awk '{s+=($1>1000?$1/1000:$1)} END {print int(s)}')"
 ALLOC_MEM="$(oc get nodes -o jsonpath='{range .items[*]}{.status.allocatable.memory}{"\n"}{end}' 2>/dev/null | sed 's/Ki$//' | awk '{s+=$1} END {print int(s/1024/1024)}')"
 if [[ -n "$ALLOC_CPU" && "$ALLOC_CPU" -gt 0 ]]; then
