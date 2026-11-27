@@ -253,13 +253,16 @@ spec:
           clientSecret: "${OPENSHIFT_CLIENT_SECRET}"
           defaultScope: user:info
           syncMode: FORCE
-    # Whoever the cluster lets in gets these realm roles. A federated user has
+    # Whoever the cluster lets in gets these realm roles. The mapper id is the
+    # one this RHBK lists for openshift-v4 (oidc-hardcoded-role-idp-mapper): a
+    # wrong id imports fine and then fails the login with a NullPointerException.
+    # A federated user has
     # none otherwise, and TPA would show them nothing.
     identityProviderMappers:
       {{- range .Values.openshiftLogin.roles }}
       - name: role-{{ . }}
         identityProviderAlias: openshift
-        identityProviderMapper: hardcoded-role
+        identityProviderMapper: oidc-hardcoded-role-idp-mapper
         config:
           syncMode: FORCE
           role: {{ . }}
