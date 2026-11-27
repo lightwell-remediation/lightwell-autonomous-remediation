@@ -89,7 +89,7 @@ disabled` error. Then delete this entry.
 
 ## TPA 3.1.1 rejects the Lightwell Maven ecosystem
 
-- **Date**: 2026-11-27
+- **Date**: 2026-11-27 (workaround applied and run on a cluster)
 - **Affected version**: Red Hat Trusted Profile Analyzer 3.1.1 and **3.1.2**
   (`stable-v3` resolves to 3.1.2; the importer still logs the error there)
 - **Bug/Issue**: [TC-7303](https://redhat.atlassian.net/browse/TC-7303)
@@ -103,11 +103,18 @@ never reach the instance.
 
 ### Workaround
 
-None applied in the chart yet. The Python remediated importer does ingest
-records (one advisory seen on 2026-11-27); the Java one fails on every record.
+Load the records through the API with the ecosystem rewritten from
+`Red Hat Lightwell:Maven` to `Maven`: `scripts/tpa-load-lightwell.sh`. TPA
+accepts them that way (HTTP 201; 303 of 303 records loaded on 2026-11-27) and
+matches on the purl, the affected range and the fixed version, which are
+untouched. The cost is that a record no longer says it came from Lightwell.
+Run it after `make secrets` and before the first run; rerun it to pick up new
+records. The Roman's reference deployment
+([rmarting/rhtpa-openshift-demo](https://github.com/rmarting/rhtpa-openshift-demo))
+has no workaround, only the note that 3.1.2 would fix it, which it did not.
 
 ### How to verify the fix
 
-`make validate` reports no Lightwell importer errors and a CVE fixed by a
-Lightwell rebuild shows as fixed in the pull request's TPA section. Then delete
-this entry.
+The importer log shows no `Red Hat Lightwell:Maven` error. Then delete this
+entry and `scripts/tpa-load-lightwell.sh`. Still to check: a CVE fixed by a
+Lightwell rebuild shows as fixed in the pull request's TPA section.
