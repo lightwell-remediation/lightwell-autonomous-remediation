@@ -148,8 +148,16 @@ cd deploy
 make preflight      # read only: names what is missing and which preset fits
 make deploy-all     # GitOps operator, Secrets, then the app-of-apps; waits
 make validate       # the gate: Applications, operators, DSC, Secrets, image, smoke run
+make tpa-load       # path A only: Lightwell records into TPA (workaround TC-7303)
+make tpa-onboard    # the application's baseline in TPA, once per application
 cd ..
 ```
+
+`tpa-load` and `tpa-onboard` come last because they need the Trusted Profile
+Analyzer instance up (`make validate` checks it) and, for path A, the `LW_*`
+credentials. TPA's own importer cannot load the Lightwell records yet: it
+rejects their `Red Hat Lightwell:Maven` ecosystem ([workarounds](workarounds.md)),
+so `tpa-load` sends them through the API. Skip both on path B without TPA.
 
 If you forked this repository, point ArgoCD at the fork first, because it
 reconciles from git and not from your laptop:

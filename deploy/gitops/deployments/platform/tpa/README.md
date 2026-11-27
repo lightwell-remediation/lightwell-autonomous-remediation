@@ -2,7 +2,7 @@
 
 Red Hat Trusted Profile Analyzer next to the pipeline
 ([ADR-0013](../../../../../docs/adr/0013-trusted-profile-analyzer-in-cluster.md)).
-Status: written, **not yet run on a cluster**.
+Status: installed and validated on a cluster on 2026-11-27 (`make validate` green for TPA); the Lightwell login-with-OpenShift and a real run are still open.
 
 ## What it installs
 
@@ -30,7 +30,8 @@ Status: written, **not yet run on a cluster**.
 make -C deploy preflight          # Keycloak, NooBaa, existing rhtpa Subscription
 make -C deploy secrets deploy
 make -C deploy validate           # CSV, deployments, token, API call, importer log
-scripts/tpa-onboard.sh            # baseline of the application, once
+make -C deploy tpa-load           # Lightwell records, through the API (TC-7303)
+make -C deploy tpa-onboard        # baseline of the application, once
 ```
 
 Iterate with `helm upgrade --install` on this chart before trusting ArgoCD.
@@ -38,5 +39,6 @@ Iterate with `helm upgrade --install` on this chart before trusting ArgoCD.
 
 ## Known issues
 
-TC-7588 (credential paths, applied here) and TC-7303 (Lightwell Maven
-ecosystem, TPA 3.1.1): see [workarounds](../../../../../docs/workarounds.md).
+TC-7588 (credential paths, applied here as a PostSync Job) and TC-7303
+(Lightwell Maven ecosystem, still present in 3.1.2: the importer cannot load the
+records, `make tpa-load` does it through the API): see [workarounds](../../../../../docs/workarounds.md).

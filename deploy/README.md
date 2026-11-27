@@ -59,6 +59,8 @@ make preflight      # read only, tells you which preset matches this cluster
 make deploy-all     # preflight + gitops + secrets + deploy, then waits
 make build-image    # usually has nothing to start, the chain fires itself
 make validate
+make tpa-load       # path A: Lightwell records into TPA (TC-7303, docs/workarounds.md)
+make tpa-onboard    # baseline of the application in TPA, once per application
 ```
 
 `make deploy-all` is re-runnable. If it stops halfway, run it again.

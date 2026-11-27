@@ -42,6 +42,8 @@ help:
 	@echo "  make secrets        Apply credentials from ../secrets/secrets.env"
 	@echo "  make deploy         Apply the app-of-apps (PRESET=$(PRESET))"
 	@echo "  make smoke          Run the smoke pipeline only"
+	@echo "  make tpa-load       Load the Lightwell records into TPA (workaround TC-7303)"
+	@echo "  make tpa-onboard    Register the application baseline in TPA"
 	@echo "  make status         ArgoCD applications and agent namespace"
 	@echo "  make argocd         ArgoCD URL and admin password"
 	@echo "  make clean-runs     Delete old PipelineRuns and their PVCs"
@@ -83,6 +85,15 @@ deploy-all: preflight gitops secrets deploy
 	@echo ""
 	@echo "Next: make validate, once the DataScienceCluster is Ready and the"
 	@echo "runtime image has built (both start on their own, ~10 minutes)"
+
+# Workaround TC-7303 (docs/workarounds.md): TPA's importer rejects the Lightwell
+# Maven ecosystem, so the records go in through the API. Needs the TPA
+# Application healthy, and make secrets before it. Re-runnable.
+tpa-load:
+	@../scripts/tpa-load-lightwell.sh --namespace $(AGENT_NS)
+
+tpa-onboard:
+	@../scripts/tpa-onboard.sh
 
 build-image:
 	@scripts/build-image.sh --namespace $(AGENT_NS) $(if $(FORCE),--force,)
